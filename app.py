@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 from io import BytesIO
 from zipfile import ZipFile
@@ -12,6 +13,8 @@ import low_signal_detection as lsd
 from algs import get_algorithms, get_algorithm, get_algorithm_name
 from colormaps import get_colormaps, get_colormap_by_name
 
+import globals
+
 enhanced_image_folder = os.path.join('static', 'enhanced_data')
 upload_folder = os.path.join('static', 'uploads')
 
@@ -21,12 +24,10 @@ app.config['UPLOAD_FOLDER'] = upload_folder
 
 ALLOWED_EXTENSIONS = {'tiff'}
 
-DOWNLOAD_PATHS_BY_IMAGE = list()
-
-if not(os.path.exists(enhanced_image_folder)):
+if not (os.path.exists(enhanced_image_folder)):
     os.makedirs(enhanced_image_folder)
 
-if not(os.path.exists(upload_folder)):
+if not (os.path.exists(upload_folder)):
     os.makedirs(upload_folder)
 
 
@@ -43,7 +44,7 @@ def download(filename):
 @app.route('/download_all/<i>')
 def download_all(i):
     print(i)
-    paths = DOWNLOAD_PATHS_BY_IMAGE[int(i)]
+    paths = globals.DOWNLOAD_PATHS_BY_IMAGE[int(i)]
     stream = BytesIO()
     with ZipFile(stream, 'w') as zf:
         for file in paths:
@@ -77,6 +78,46 @@ def enhance_page():
     return render_template("enhance.html", algorithms=get_algorithms(), colormaps=get_colormaps())
 
 
+def run_algorithm(radius_denoising, radius_circle, algs, colormap, do_enhance, images_by_filename):
+    globals.ORIGINAL_IMAGES = list()
+    globals.ENHANCED_IMAGES = list()
+    globals.DOWNLOAD_PATHS_BY_IMAGE = list()
+    """# list of sequences of images to be analysed
+    images = [
+        './static/test_data/sample0.tiff'
+    ]"""
+
+    start_complete = time.time()
+
+    for img_num in range(len(images_by_filename)):
+        globals.ORIGINAL_IMAGES.append(images_by_filename[img_num])
+        enhanced_image_by_alg = list()
+        for abbr, alg in algs:
+            enhanced_image = lsd.detect_signal(images_by_filename[img_num], alg, do_enhance,
+                                               radius_denoising, radius_circle)
+
+            path = os.path.join(app.config['ENHANCED_FOLDER'], f'image{img_num}_{abbr}.png')
+            enhanced_image = cv2.applyColorMap(enhanced_image, colormap=colormap)
+            cv2.imwrite(path, enhanced_image)
+            enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
+
+        globals.ENHANCED_IMAGES.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
+
+    # take time for computation duration
+    end_complete = time.time()
+    # output infos
+    print('Finished in ' + str(round(end_complete - start_complete, 2)) + 's')
+
+    time.sleep(0.1)
+
+    paths = [[img['filename'] for img in enhanced_image['enhanced_by_alg']] for enhanced_image in globals.ENHANCED_IMAGES]
+
+    for i in range(len(images_by_filename)):
+        globals.DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
+
+    print("Finished running algorithms...")
+
+
 @app.route('/algorithm', methods=['POST'])
 def algorithm():
     radius_denoising = int(request.form['noiseRadiusInput'])
@@ -93,8 +134,8 @@ def algorithm():
 
     do_enhance = True
 
-    images_by_filename = list()
     images = flask.request.files.getlist('fileUploadInput')
+    images_by_filename = list()
     for image in images:
         if image.filename == '':
             return redirect('/')
@@ -109,43 +150,21 @@ def algorithm():
                 except IsADirectoryError:
                     path += "(1)"
 
-    """# list of sequences of images to be analysed
-    images = [
-        './static/test_data/sample0.tiff'
-    ]"""
+    args = (radius_denoising, radius_circle, algs, colormap, do_enhance, images_by_filename)
+    t = threading.Thread(target=run_algorithm, args=args)
+    t.start()
 
-    start_complete = time.time()
+    return """<p>Loading...</p><script>
+    function redirect() {
+        location.replace("/enhanced_images")
+    }
+    setTimeout(function(){ redirect(); }, 5000);</script>"""
 
-    original_images = list()
-    enhanced_images = list()
-    for img_num in range(len(images_by_filename)):
-        original_images.append(images_by_filename[img_num])
-        enhanced_image_by_alg = list()
-        for abbr, alg in algs:
-            enhanced_image = lsd.detect_signal(images_by_filename[img_num], alg, do_enhance,
-                                               radius_denoising, radius_circle)
-            path = os.path.join(app.config['ENHANCED_FOLDER'], f'image{img_num}_{abbr}.png')
-            print(path)
-            enhanced_image = cv2.applyColorMap(enhanced_image, colormap)
-            cv2.imwrite(path, enhanced_image)
-            enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
 
-        enhanced_images.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
-
-    # take time for computation duration
-    end_complete = time.time()
-    # output infos
-    print('Finished in ' + str(round(end_complete - start_complete, 2)) + 's')
-
-    time.sleep(0.1)
-
-    paths = [[img['filename'] for img in enhanced_image['enhanced_by_alg']] for enhanced_image in enhanced_images]
-
-    for i in range(len(images_by_filename)):
-        DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
-    return render_template("algorithm.html", original_images=original_images, enhanced_images=enhanced_images,
-                           circle_radius=radius_circle, denoising_radius=radius_denoising,
-                           download_paths_by_image=DOWNLOAD_PATHS_BY_IMAGE)
+@app.route('/enhanced_images')
+def enhanced_images():
+    return render_template("algorithm.html", original_images=globals.ORIGINAL_IMAGES, enhanced_images=globals.ENHANCED_IMAGES,
+                           download_paths_by_image=globals.DOWNLOAD_PATHS_BY_IMAGE)
 
 
 port = int(os.environ.get('PORT', 5000))
