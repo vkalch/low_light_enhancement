@@ -24,10 +24,10 @@ ALLOWED_EXTENSIONS = {'tiff'}
 DOWNLOAD_PATHS_BY_IMAGE = list()
 
 if not(os.path.exists(enhanced_image_folder)):
-    os.mkdir(enhanced_image_folder)
+    os.makedirs(enhanced_image_folder)
 
 if not(os.path.exists(upload_folder)):
-    os.mkdir(upload_folder)
+    os.makedirs(upload_folder)
 
 
 def allowed_file(filename):
