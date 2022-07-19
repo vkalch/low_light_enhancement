@@ -1,6 +1,7 @@
 import os
 import threading
 import time
+import uuid
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -13,49 +14,41 @@ import low_signal_detection as lsd
 from algs import get_algorithms, get_algorithm, get_algorithm_name
 from colormaps import get_colormaps, get_colormap_by_name
 
-import globals
-
-enhanced_image_folder = os.path.join('static', 'enhanced_data')
-upload_folder = os.path.join('static', 'uploads')
-
 app = Flask(__name__)
-app.config['ENHANCED_FOLDER'] = enhanced_image_folder
-app.config['UPLOAD_FOLDER'] = upload_folder
 
-ALLOWED_EXTENSIONS = {'tiff'}
 
-if not (os.path.exists(enhanced_image_folder)):
-    os.makedirs(enhanced_image_folder)
-
-if not (os.path.exists(upload_folder)):
-    os.makedirs(upload_folder)
+def find_image_enhancer_by_id(enhancer_id):
+    for enhancer in IMAGE_ENHANCERS:
+        if enhancer.get_id() == enhancer_id:
+            return enhancer
 
 
 def allowed_file(filename):
+    """
+    Determines whether a file has an allowed extension
+
+    Args:
+        filename (str): The filename to check
+
+    Returns:
+        is_allowed (bool): Whether the filename is allowed
+    """
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route('/<path:filename>', methods=['GET', 'POST'])
 def download(filename):
+    """
+    Downloads the selected filename
+
+    Args:
+        filename (str): The file to download
+
+    Returns:
+        None
+    """
     return send_from_directory(directory='/', path=filename)
-
-
-@app.route('/download_all/<i>')
-def download_all(i):
-    print(i)
-    paths = globals.DOWNLOAD_PATHS_BY_IMAGE[int(i)]
-    stream = BytesIO()
-    with ZipFile(stream, 'w') as zf:
-        for file in paths:
-            zf.write(file, os.path.basename(file))
-    stream.seek(0)
-
-    return send_file(
-        stream,
-        as_attachment=True,
-        attachment_filename='enhanced_image.zip'
-    )
 
 
 @app.route('/')
@@ -78,48 +71,110 @@ def enhance_page():
     return render_template("enhance.html", algorithms=get_algorithms(), colormaps=get_colormaps())
 
 
-def run_algorithm(radius_denoising, radius_circle, algs, colormap, do_enhance, images_by_filename):
-    globals.ORIGINAL_IMAGES = list()
-    globals.ENHANCED_IMAGES = list()
-    globals.DOWNLOAD_PATHS_BY_IMAGE = list()
-    """# list of sequences of images to be analysed
-    images = [
-        './static/test_data/sample0.tiff'
-    ]"""
+class ImageEnhancer:
+    """
+    Class to handle image enhancement and store information about the images the user has enhanced.
+    One instance of this class is created for every user.
+    """
+    def __init__(self):
+        self.ORIGINAL_IMAGES = list()
+        self.ENHANCED_IMAGES = list()
+        self.DOWNLOAD_PATHS_BY_IMAGE = list()
+        self.ID = str(uuid.uuid4())
 
-    start_complete = time.time()
+    def get_id(self):
+        return self.ID
 
-    for img_num in range(len(images_by_filename)):
-        globals.ORIGINAL_IMAGES.append(images_by_filename[img_num])
-        enhanced_image_by_alg = list()
-        for abbr, alg in algs:
-            enhanced_image = lsd.detect_signal(images_by_filename[img_num], alg, do_enhance,
-                                               radius_denoising, radius_circle)
+    def run_algorithm(self, radius_denoising, radius_circle, algs, colormap, do_enhance, images_by_filename):
+        """
+        Setter for this ImageEnhancer instance variables. Runs algorithms on selected images.
 
-            path = os.path.join(app.config['ENHANCED_FOLDER'], f'image{img_num}_{abbr}.png')
-            enhanced_image = cv2.applyColorMap(enhanced_image, colormap=colormap)
-            cv2.imwrite(path, enhanced_image)
-            enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
+        Args:
+            radius_denoising (int): Denoising radius
+            radius_circle (ing): Radius of marker circle
+            algs (list): List of algorithms to apply to data
+            colormap (list): The selected colormap
+            do_enhance (bool): Whether to enhance outputted images
+            images_by_filename (list): List of filenames of images to enhance
 
-        globals.ENHANCED_IMAGES.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
+        Returns:
+            None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
+        """
+        self.ORIGINAL_IMAGES = list()
+        self.ENHANCED_IMAGES = list()
+        self.DOWNLOAD_PATHS_BY_IMAGE = list()
 
-    # take time for computation duration
-    end_complete = time.time()
-    # output infos
-    print('Finished in ' + str(round(end_complete - start_complete, 2)) + 's')
+        for img_num in range(len(images_by_filename)):
+            self.ORIGINAL_IMAGES.append(images_by_filename[img_num])
+            enhanced_image_by_alg = list()
+            for abbr, alg in algs:
+                start = time.time()
+                enhanced_image = lsd.detect_signal(images_by_filename[img_num], alg, do_enhance,
+                                                   radius_denoising, radius_circle)
 
-    time.sleep(0.1)
+                print(f"Finished doing {abbr} on {images_by_filename[img_num]} in {round(time.time()-start, 2)}s")
 
-    paths = [[img['filename'] for img in enhanced_image['enhanced_by_alg']] for enhanced_image in globals.ENHANCED_IMAGES]
+                path = os.path.join(app.config['ENHANCED_FOLDER'], f'image{img_num}_{abbr}.png')
+                enhanced_image = cv2.applyColorMap(enhanced_image, colormap=colormap)
+                cv2.imwrite(path, enhanced_image)
+                enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
 
-    for i in range(len(images_by_filename)):
-        globals.DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
+            self.ENHANCED_IMAGES.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
 
-    print("Finished running algorithms...")
+        paths = [[img['filename'] for img in enhanced_image['enhanced_by_alg']] for enhanced_image in self.ENHANCED_IMAGES]
+
+        for i in range(len(images_by_filename)):
+            self.DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
+
+        print("Finished running algorithms...")
+
+
+@app.route('/<enhancer_id>')
+def enhanced_images(enhancer_id):
+    """
+    Display the images contained within the user's ImageEnhancer
+    """
+    image_enhancer = find_image_enhancer_by_id(enhancer_id)
+    return render_template("algorithm.html", original_images=image_enhancer.ORIGINAL_IMAGES,
+                           enhanced_images=image_enhancer.ENHANCED_IMAGES,
+                           download_paths_by_image=image_enhancer.DOWNLOAD_PATHS_BY_IMAGE,
+                           user_id=image_enhancer.ID)
+
+
+@app.route('/download_all/<i>/<enhancer_id>')
+def download_all(i, enhancer_id):
+    """
+    Downloads all images from self.DOWNLOAD_PATHS_BY_IMAGE[i] (representing the images generated by the various algs
+    applied to "i"th image) as .zip file.
+
+    Args:
+        i (int): The number image for which to download algs applied
+        enhancer_id (str): The unique ID of the current user's ImageEnhancer
+    """
+    image_enhancer = find_image_enhancer_by_id(enhancer_id)
+    paths = image_enhancer.DOWNLOAD_PATHS_BY_IMAGE[int(i)]
+    stream = BytesIO()
+    with ZipFile(stream, 'w') as zf:
+        for file in paths:
+            zf.write(file, os.path.basename(file))
+    stream.seek(0)
+
+    return send_file(
+        stream,
+        as_attachment=True,
+        attachment_filename='enhanced_image.zip'
+    )
 
 
 @app.route('/algorithm', methods=['POST'])
 def algorithm():
+    """
+    Creates new ImageEnhancer and a thread to run its run_algorithm() method. Returns a screen which will take the
+    user to a screen containing the images he has enhanced
+    """
+    image_enhancer = ImageEnhancer()
+    IMAGE_ENHANCERS.append(image_enhancer)
+
     radius_denoising = int(request.form['noiseRadiusInput'])
     radius_circle = int(request.form['circleRadiusInput'])
     algs = [(abbr, get_algorithm(abbr)) for abbr in request.form.getlist('algorithmCheckbox')]
@@ -151,27 +206,31 @@ def algorithm():
                     path += "(1)"
 
     args = (radius_denoising, radius_circle, algs, colormap, do_enhance, images_by_filename)
-    t = threading.Thread(target=run_algorithm, args=args)
+    t = threading.Thread(target=image_enhancer.run_algorithm, args=args)
     t.start()
 
-    return """<p>Loading...</p><script>
-    function redirect() {
-        location.replace("/submitted")
-    }
-    setTimeout(function(){ redirect(); }, 1000);</script>"""
+    return render_template('submitted.html', user_id=image_enhancer.ID)
 
 
-@app.route('/submitted')
-def submitted():
-    return render_template('submitted.html')
+# Create folders to store user uploaded and enhanced images
+enhanced_image_folder = os.path.join('static', 'enhanced_data')
+upload_folder = os.path.join('static', 'uploads')
+app.config['ENHANCED_FOLDER'] = enhanced_image_folder
+app.config['UPLOAD_FOLDER'] = upload_folder
 
+# Set allowed extensions
+ALLOWED_EXTENSIONS = {'tiff'}
 
-@app.route('/enhanced_images')
-def enhanced_images():
-    return render_template("algorithm.html", original_images=globals.ORIGINAL_IMAGES,
-                           enhanced_images=globals.ENHANCED_IMAGES,
-                           download_paths_by_image=globals.DOWNLOAD_PATHS_BY_IMAGE)
+# Make sure user upload and enhanced image folders exist
+if not (os.path.exists(enhanced_image_folder)):
+    os.makedirs(enhanced_image_folder)
 
+if not (os.path.exists(upload_folder)):
+    os.makedirs(upload_folder)
 
+# Create a new instance of the ImageEnhancer class to store user data
+IMAGE_ENHANCERS = list()
+
+# Start the flask app
 port = int(os.environ.get('PORT', 5000))
 app.run(host='0.0.0.0', port=port)

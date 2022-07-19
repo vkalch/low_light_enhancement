@@ -30,7 +30,7 @@
                             </div>
                         </div>
                     </div>
-                    <a class="btn btn-success btn-block btn-lg mt-3 mb-3" href="{{ url_for('download_all', i=enhanced_images.index(enhanced_image)|string) }}" target="_blank">
+                    <a class="btn btn-success btn-block btn-lg mt-3 mb-3" href="{{ url_for('download_all', i=enhanced_images.index(enhanced_image)|string, enhancer_id=user_id) }}" target="_blank">
                             Download All
                             </a>
                     <div class="row">

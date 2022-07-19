@@ -16,9 +16,11 @@
                 <div class="container">
                     <p>Your images have been successfully submitted and are being processed by the server. Click the
                     button below to see the images that have been processed so far.</p>
-                    <a class="btn btn-primary btn-lg btn-block" href="{{ url_for('enhanced_images') }}">
+                    <a class="btn btn-primary btn-lg btn-block" href="{{ user_id }}">
                             See Enhanced Images
-                        </a>
+                    </a>
+                    <p class="mt-5">Alternatively, use this temporary link:</p>
+                    <a href="{{ user_id }}">{{ url_for('enhanced_images', enhancer_id=user_id, _external=True) }}</a>
                 </div>
             </div>
         </div>
