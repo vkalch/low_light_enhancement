@@ -1,7 +1,5 @@
 import os
 import threading
-import time
-import uuid
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -10,7 +8,7 @@ import flask
 from flask import Flask, render_template, request, send_from_directory, send_file
 from werkzeug.utils import secure_filename, redirect
 
-from algs import get_algorithms, get_algorithm, get_algorithm_name
+from algs import get_algorithms, get_algorithm
 from colormaps import get_colormaps, get_colormap_by_name
 from low_signal_detector import LowSignalDetector as LSD
 
