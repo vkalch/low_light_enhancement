@@ -6,50 +6,50 @@
 </head>
 <body>
     {% include "navbar.html" %}
-      <div class="container">
-          <div class="row">
-              <div class="col-6">
+    <div class="container">
+        <div class="row">
+            <div class="col-6">
                 <h1 class="display-4 mt-3">Enhanced Images</h1>
-                  <p>Scroll down to see enhancement! If some images are missing, just refresh the page and they should appear.</p>
-              </div>
-              <div class="col-6 my-auto">
-                  <a class="btn btn-success btn-block btn-lg" href="{{ url_for('enhance_page') }}">
-                                Go Back
-                            </a>
-              </div>
-          </div>
-          <div class="container">
+                <p>Scroll down to see enhancement! If some images are missing, just refresh the page and they should appear.</p>
+            </div>
+            <div class="col-6 my-auto">
+                <a class="btn btn-success btn-block btn-lg" href="{{ url_for('enhance_page') }}">
+                            Go Back
+                        </a>
+            </div>
+        </div>
+        <div class="container">
             {% for enhanced_image in enhanced_images %}
-              <div class="jumbotron">
-                  <div class="container align-items-center justify-content-center">
+                <div class="jumbotron">
+                    <div class="container align-items-center justify-content-center">
                         <div class="card" style="width: 100%">
                             <img class="card-img-top" src="{{ original_images[enhanced_image['img_num']] }}" alt="Enhanced Image">
                             <div class="card-body">
                                 <h5 class="card-title">Original Image</h5>
                             </div>
                         </div>
-                  </div>
-                <a class="btn btn-success btn-block btn-lg mt-3 mb-3" href="{{ url_for('download_all', i=enhanced_images.index(enhanced_image)|string) }}" target="_blank">
-                                Download All
-                            </a>
-              <div class="row">
-                {% for enhanced_by_alg in enhanced_image['enhanced_by_alg'] %}
-                  <div class="col-4 mt-5">
-                    <div class="card" style="width: 18rem;">
-                    <img class="card-img-top" src="{{ enhanced_by_alg['filename'] }}" alt="Enhanced Image">
-                        <div class="card-body">
-                            <h5 class="card-title">{{ enhanced_by_alg['alg_name'] }}</h5>
-                            <a class="btn btn-primary" href="{{ url_for('download', filename=enhanced_by_alg['filename']) }}"
-                               target="_blank">Download</a>
-                        </div>
                     </div>
-                  </div>
-                {% endfor %}
+                    <a class="btn btn-success btn-block btn-lg mt-3 mb-3" href="{{ url_for('download_all', i=enhanced_images.index(enhanced_image)|string) }}" target="_blank">
+                            Download All
+                            </a>
+                    <div class="row">
+                        {% for enhanced_by_alg in enhanced_image['enhanced_by_alg'] %}
+                            <div class="col-4 mt-5">
+                                <div class="card" style="width: 18rem;">
+                                    <img class="card-img-top" src="{{ enhanced_by_alg['filename'] }}" alt="Enhanced Image">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ enhanced_by_alg['alg_name'] }}</h5>
+                                        <a class="btn btn-primary" href="{{ url_for('download', filename=enhanced_by_alg['filename']) }}"
+                                           target="_blank">Download</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
-              </div>
             {% endfor %}
-          </div>
-      </div>
+        </div>
+    </div>
 
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
