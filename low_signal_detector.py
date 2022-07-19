@@ -2,8 +2,8 @@
 File: low_signal_detector.py
 
 Author 1: J. Kuehne
-Author 2: V. Kalchenko
-Author 3: A. Balsam
+Author 2: A. Balsam
+Author 3: V. Kalchenko
 Date: Summer 2022
 Project: ISSI Weizmann Institute 2022
 Label: Product
@@ -18,11 +18,13 @@ Summary:
 import os
 import time
 import uuid
+import logging
 
 import cv2
 import numpy as np
 from skimage import io
 from sklearn.preprocessing import MinMaxScaler
+import imageio.v3 as iio
 
 from algs import get_algorithm_name
 
@@ -38,7 +40,8 @@ class LowSignalDetector:
     One instance of this class is created for every user.
     """
 
-    def __init__(self, images_by_filename, algs, radius_denoising, radius_circle, colormap, do_enhance, output_folder):
+    def __init__(self, images_by_filename: str, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
+                 do_enhance: bool, output_folder: str):
         """
         Args:
             images_by_filename: Filenames of images to enhance
@@ -62,8 +65,17 @@ class LowSignalDetector:
         self.do_enhance = do_enhance
         self.output_folder = output_folder
 
+        # List of gifs representing original tiff files
+        # Populated by run_algorithm()
+        self.gifs_by_filename = list()
+
     def get_id(self):
         return self.ID
+
+    def __str__(self):
+        return (f"Low Signal Detector {self.get_id()}\nAlgs: {self.algs}\nImages: {self.images_by_filename}\n"
+                f"Circle Radius: {self.radius_circle}\nDenoising Radius: {self.radius_denoising}\n"
+                f"Colormap: {self.colormap}\nEnhance: {self.do_enhance}\nOutput Folder: {self.output_folder}")
 
     def run_algorithm(self):
         """
@@ -72,23 +84,35 @@ class LowSignalDetector:
         Returns:
             None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
         """
+        logging.info(f"Running run_algorithm() on:\n{str(self)}")
         self.ORIGINAL_IMAGES = list()
         self.ENHANCED_IMAGES = list()
         self.DOWNLOAD_PATHS_BY_IMAGE = list()
 
+        start_algs = time.time()
+
         for img_num in range(len(self.images_by_filename)):
-            self.ORIGINAL_IMAGES.append(self.images_by_filename[img_num])
+            # Save gif files to display (for comparison's sake)
+            gif_path = f"{self.images_by_filename[img_num].split('.')[0]}.gif"
+
+            frames = iio.imread(self.images_by_filename[img_num], index=None)
+
+            iio.imwrite(gif_path, frames)
+            self.ORIGINAL_IMAGES.append(gif_path)
+
+            # self.ORIGINAL_IMAGES.append(self.images_by_filename[img_num])
             enhanced_image_by_alg = list()
             for abbr, alg in self.algs:
                 start = time.time()
+                logging.info(f"Starting {abbr} on {self.images_by_filename[img_num]}...")
                 enhanced_image = self.detect_signal(self.images_by_filename[img_num], alg)
-
-                print(f"Finished doing {abbr} on {self.images_by_filename[img_num]} in {round(time.time() - start, 2)}s")
 
                 path = os.path.join(self.output_folder, f'image{img_num}_{abbr}.png')
                 enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
                 cv2.imwrite(path, enhanced_image)
                 enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
+
+                logging.info(f"Finished {abbr} on {self.images_by_filename[img_num]} in {round(time.time() - start, 2)}s")
 
             self.ENHANCED_IMAGES.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
 
@@ -98,7 +122,7 @@ class LowSignalDetector:
         for i in range(len(self.images_by_filename)):
             self.DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
 
-        print("Finished running algorithms...")
+        logging.info(f"Finished running algorithms. Total time: {round(time.time() - start_algs, 2)}s")
 
     def enhance_image(self, image):
         """

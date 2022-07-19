@@ -1,5 +1,7 @@
+import logging
 import os
 import threading
+import uuid
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -19,6 +21,7 @@ def find_lsd_by_id(detector_id):
     for detector in LOW_SIGNAL_DETECTORS:
         if detector.get_id() == detector_id:
             return detector
+    logging.error(f"Did not find an LSD with ID {detector_id}")
     return None
 
 
@@ -76,6 +79,7 @@ def enhanced_images(detector_id):
     Display the images contained within the user's ImageEnhancer
     """
     lsd = find_lsd_by_id(detector_id)
+
     if lsd is None:
         redirect('/')
 
@@ -169,15 +173,13 @@ def algorithm():
         if image.filename == '':
             return redirect('/')
         if image and allowed_file(image.filename):
-            filename = secure_filename(image.filename)
+            filename = f"{str(uuid.uuid4())}.tiff"
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            while True:
-                try:
-                    image.save(path)
-                    images_by_filename.append(path)
-                    break
-                except IsADirectoryError:
-                    path += "(1)"
+            image.save(path)
+            images_by_filename.append(path)
+        else:
+            return """<h1>Please upload an image with the correct file type.</h1>
+                        <a href="/enhance">Go back to the homepage</a>"""
 
     output_folder = os.path.join(app.config['ENHANCED_FOLDER'])
     lsd = LSD(images_by_filename=images_by_filename, algs=algs, radius_denoising=radius_denoising,
@@ -200,7 +202,7 @@ app.config['UPLOAD_FOLDER'] = upload_folder
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1000 * 1000
 
 # Set allowed extensions
-ALLOWED_EXTENSIONS = {'tiff'}
+ALLOWED_EXTENSIONS = {'tiff', 'tif'}
 
 # Make sure user upload and enhanced image folders exist
 if not (os.path.exists(enhanced_image_folder)):
