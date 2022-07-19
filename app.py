@@ -156,7 +156,7 @@ def algorithm():
 
     return """<p>Loading...</p><script>
     function redirect() {
-        location.replace("/enhanced_images")
+        location.replace("/submitted")
     }
     setTimeout(function(){ redirect(); }, 1000);</script>"""
 
