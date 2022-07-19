@@ -13,8 +13,14 @@
                 <p>Scroll down to see enhancement! If some images are missing,
                     refresh the page to update status.</p>
             </div>
-            <div class="col-6 my-auto">
-                <a class="btn btn-success btn-block btn-lg" href="{{ url_for('enhance_page') }}">
+            <div class="col-3 my-auto">
+                <a class="btn btn-success btn-block btn-lg" href="{{ url_for('download_all', detector_id=user_id) }}"
+                           target="_blank">
+                                Download All
+                                </a>
+            </div>
+            <div class="col-3 my-auto">
+                <a class="btn btn-danger btn-block btn-lg" href="{{ url_for('enhance_page') }}">
                             Go Back
                         </a>
             </div>
@@ -30,8 +36,8 @@
                             </div>
                         </div>
                     </div>
-                    <a class="btn btn-success btn-block btn-lg mt-3 mb-3"
-                       href="{{ url_for('download_all', i=enhanced_images.index(enhanced_image)|string, detector_id=user_id) }}"
+                    <a class="btn btn-primary btn-block btn-lg mt-3 mb-3"
+                       href="{{ url_for('download_all_by_num', i=enhanced_images.index(enhanced_image)|string, detector_id=user_id) }}"
                        target="_blank">
                             Download All
                             </a>
