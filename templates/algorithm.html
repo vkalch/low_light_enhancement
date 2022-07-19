@@ -10,7 +10,7 @@
           <div class="row">
               <div class="col-6">
                 <h1 class="display-4 mt-3">Enhanced Images</h1>
-                  <p>Scroll down to see enhancement!</p>
+                  <p>Scroll down to see enhancement! If some images are missing, just refresh the page and they should appear.</p>
               </div>
               <div class="col-6 my-auto">
                   <a class="btn btn-success btn-block btn-lg" href="{{ url_for('enhance_page') }}">
@@ -48,8 +48,6 @@
                 </div>
               </div>
             {% endfor %}
-            <p>Circle Radius: {{ circle_radius }}</p>
-            <p>Denoising Radius: {{ denoising_radius }}</p>
           </div>
       </div>
 

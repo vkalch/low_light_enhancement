@@ -20,3 +20,5 @@ natsort~=8.1.0
 matplotlib~=3.5.2
 opencv-python-headless==4.6.0.66
 scikit-learn~=1.1.1
+rq==1.10.1
+redis~=4.3.4
