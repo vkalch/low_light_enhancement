@@ -158,12 +158,18 @@ def algorithm():
     function redirect() {
         location.replace("/enhanced_images")
     }
-    setTimeout(function(){ redirect(); }, 5000);</script>"""
+    setTimeout(function(){ redirect(); }, 1000);</script>"""
+
+
+@app.route('/submitted')
+def submitted():
+    return render_template('submitted.html')
 
 
 @app.route('/enhanced_images')
 def enhanced_images():
-    return render_template("algorithm.html", original_images=globals.ORIGINAL_IMAGES, enhanced_images=globals.ENHANCED_IMAGES,
+    return render_template("algorithm.html", original_images=globals.ORIGINAL_IMAGES,
+                           enhanced_images=globals.ENHANCED_IMAGES,
                            download_paths_by_image=globals.DOWNLOAD_PATHS_BY_IMAGE)
 
 
