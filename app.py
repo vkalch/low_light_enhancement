@@ -148,4 +148,5 @@ def algorithm():
                            download_paths_by_image=DOWNLOAD_PATHS_BY_IMAGE)
 
 
-app.run()
+port = int(os.environ.get('PORT', 5000))
+app.run(host='0.0.0.0', port=port)
