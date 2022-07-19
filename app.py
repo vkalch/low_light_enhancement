@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import cv2
 import flask
-from flask import Flask, render_template, request, send_from_directory, send_file, flash, url_for
+from flask import Flask, render_template, request, send_from_directory, send_file, url_for
 
 from algs import get_algorithms, get_algorithm
 from colormaps import get_colormaps, get_colormap_by_name
@@ -179,7 +179,8 @@ def algorithm():
     else:
         colormap = get_colormap_by_name(colormap)
 
-    do_enhance = True
+    do_enhance = bool(request.form.get('enhanceCheckbox'))
+    show_circle = bool(request.form.get('showCircleCheckbox'))
 
     images = flask.request.files.getlist('fileUploadInput')
     images_by_filename = list()
@@ -198,7 +199,8 @@ def algorithm():
 
     output_folder = os.path.join(app.config['ENHANCED_FOLDER'])
     lsd = LSD(images_by_filename=images_by_filename, algs=algs, radius_denoising=radius_denoising,
-              radius_circle=radius_circle, colormap=colormap, do_enhance=do_enhance, output_folder=output_folder)
+              radius_circle=radius_circle, colormap=colormap, do_enhance=do_enhance, show_circle=show_circle,
+              output_folder=output_folder)
     LOW_SIGNAL_DETECTORS.append(lsd)
 
     t = threading.Thread(target=lsd.run_algorithm)

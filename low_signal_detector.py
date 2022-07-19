@@ -42,7 +42,7 @@ class LowSignalDetector:
     """
 
     def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
-                 do_enhance: bool, output_folder: str):
+                 do_enhance: bool, show_circle: bool, output_folder: str):
         """
         Args:
             images_by_filename: Filenames of images to enhance
@@ -66,6 +66,7 @@ class LowSignalDetector:
         self.algs = algs
         self.colormap = colormap
         self.do_enhance = do_enhance
+        self.show_circle = show_circle
         self.output_folder = output_folder
 
     def get_id(self):
@@ -152,10 +153,25 @@ class LowSignalDetector:
                                                 self.radius_denoising, 7, 15)
         # convert to cv image grayscale
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        return image
+
+    def mark_circle(self, image):
+        """
+        Summary:
+            Marks brightest spot on image with a circle.
+
+        Args:
+            image (np.array): Image to mark
+
+        Returns:
+            image (np.array): Marked image
+        """
         # get brightest spot -> needs denoising
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(image)
         # mark with circle
         cv2.circle(image, maxLoc, self.radius_circle, (255, 0, 0), 1)
+
         return image
 
     def detect_signal(self, image: str, algorithm: list):
@@ -201,5 +217,8 @@ class LowSignalDetector:
 
         if self.do_enhance:
             image = self.enhance_image(image)
+
+        if self.show_circle:
+            image = self.mark_circle(image)
 
         return image
