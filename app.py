@@ -7,8 +7,7 @@ from zipfile import ZipFile
 
 import cv2
 import flask
-from flask import Flask, render_template, request, send_from_directory, send_file
-from werkzeug.utils import secure_filename, redirect
+from flask import Flask, render_template, request, send_from_directory, send_file, flash, url_for
 
 from algs import get_algorithms, get_algorithm
 from colormaps import get_colormaps, get_colormap_by_name
@@ -81,12 +80,24 @@ def enhanced_images(detector_id):
     lsd = find_lsd_by_id(detector_id)
 
     if lsd is None:
-        redirect('/')
+        return render_template('error.html', msg=f"Could not find LSD. Contact us if this keeps happening",
+                               btn_href='/enhance', btn_text='Go back', redirect_location='/enhance')
 
-    return render_template("algorithm.html", original_images=lsd.ORIGINAL_IMAGES,
-                           enhanced_images=lsd.ENHANCED_IMAGES,
-                           download_paths_by_image=lsd.DOWNLOAD_PATHS_BY_IMAGE,
-                           user_id=lsd.ID)
+    print(lsd.ENHANCED_IMAGES)
+    if lsd.ENHANCED_IMAGES == list():
+        if lsd.ERR:
+            return render_template('error.html', msg=f"Errored out with error: {lsd.ERR}", btn_href='/enhance',
+                                   btn_text='Go back', redirect_location='/enhance')
+        else:
+            return render_template('error.html', msg="Your images have not yet finished processing. They should load "
+                                                     "automatically. If they do not, click on the button below.",
+                                   btn_href=url_for('enhanced_images', detector_id=detector_id),
+                                   btn_text="Attempt to Load Images")
+    else:
+        return render_template("algorithm.html", original_images=lsd.ORIGINAL_IMAGES,
+                               enhanced_images=lsd.ENHANCED_IMAGES,
+                               download_paths_by_image=lsd.DOWNLOAD_PATHS_BY_IMAGE,
+                               user_id=lsd.ID)
 
 
 @app.route('/download_all/<i>/<detector_id>')
@@ -101,7 +112,8 @@ def download_all_by_num(i, detector_id):
     """
     lsd = find_lsd_by_id(detector_id)
     if lsd is None:
-        redirect('/')
+        return render_template('error.html', msg=f"Could not find LSD. Contact us if this keeps happening.",
+                               btn_href='/enhance', btn_text='Go back', redirect_location='/enhance')
     paths = lsd.DOWNLOAD_PATHS_BY_IMAGE[int(i)]
     stream = BytesIO()
     with ZipFile(stream, 'w') as zf:
@@ -127,7 +139,8 @@ def download_all(detector_id):
     """
     lsd = find_lsd_by_id(detector_id)
     if lsd is None:
-        redirect('/')
+        render_template('error.html', msg=f"Could not find LSD. Contact us if this keeps happening.",
+                        btn_href='/enhance', btn_text='Go back', redirect_location='/enhance')
 
     paths = list()
     for path_list in lsd.DOWNLOAD_PATHS_BY_IMAGE:
@@ -157,7 +170,8 @@ def algorithm():
     radius_circle = int(request.form['circleRadiusInput'])
     algs = [(abbr, get_algorithm(abbr)) for abbr in request.form.getlist('algorithmCheckbox')]
     if algs == list():
-        return redirect('/')
+        return render_template('error.html', msg=f"Please select one or more algorithms.", btn_href='/enhance',
+                               btn_text='Go back', redirect_location='/enhance')
     colormap = request.form.get('colormapInput')
 
     if colormap is None:
@@ -171,15 +185,16 @@ def algorithm():
     images_by_filename = list()
     for image in images:
         if image.filename == '':
-            return redirect('/')
+            return render_template('error.html', msg=f"Please upload one or more files.",
+                                   btn_href='/enhance', btn_text='Go back', redirect_location='/enhance')
         if image and allowed_file(image.filename):
             filename = f"{str(uuid.uuid4())}.tiff"
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             image.save(path)
             images_by_filename.append(path)
         else:
-            return """<h1>Please upload an image with the correct file type.</h1>
-                        <a href="/enhance">Go back to the homepage</a>"""
+            return render_template('error.html', msg=f"Please upload an image with .tif or .tiff extension.",
+                                   btn_href='/enhance', btn_text='Go back', redirect_location='/enhance')
 
     output_folder = os.path.join(app.config['ENHANCED_FOLDER'])
     lsd = LSD(images_by_filename=images_by_filename, algs=algs, radius_denoising=radius_denoising,

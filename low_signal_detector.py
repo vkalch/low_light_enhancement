@@ -27,6 +27,7 @@ from sklearn.preprocessing import MinMaxScaler
 import imageio.v3 as iio
 
 from algs import get_algorithm_name
+from exceptions import CorruptedFileException
 
 RGB = 3
 
@@ -40,7 +41,7 @@ class LowSignalDetector:
     One instance of this class is created for every user.
     """
 
-    def __init__(self, images_by_filename: str, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
+    def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
                  do_enhance: bool, output_folder: str):
         """
         Args:
@@ -57,6 +58,8 @@ class LowSignalDetector:
         self.DOWNLOAD_PATHS_BY_IMAGE = list()
         self.ID = str(uuid.uuid4())
 
+        self.ERR = None
+
         self.images_by_filename = images_by_filename
         self.radius_denoising = radius_denoising
         self.radius_circle = radius_circle
@@ -64,10 +67,6 @@ class LowSignalDetector:
         self.colormap = colormap
         self.do_enhance = do_enhance
         self.output_folder = output_folder
-
-        # List of gifs representing original tiff files
-        # Populated by run_algorithm()
-        self.gifs_by_filename = list()
 
     def get_id(self):
         return self.ID
@@ -85,6 +84,8 @@ class LowSignalDetector:
             None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
         """
         logging.info(f"Running run_algorithm() on:\n{str(self)}")
+
+        self.ERR = None
         self.ORIGINAL_IMAGES = list()
         self.ENHANCED_IMAGES = list()
         self.DOWNLOAD_PATHS_BY_IMAGE = list()
@@ -95,7 +96,13 @@ class LowSignalDetector:
             # Save gif files to display (for comparison's sake)
             gif_path = f"{self.images_by_filename[img_num].split('.')[0]}.gif"
 
-            frames = iio.imread(self.images_by_filename[img_num], index=None)
+            try:
+                frames = iio.imread(self.images_by_filename[img_num], index=None)
+            except (OSError, ValueError):
+                logging.error(f"A corrupted or unreadable file was uploaded by the user: "
+                              f"{self.images_by_filename.pop(img_num)}. Skipping this file...")
+                img_num -= 1
+                continue
 
             iio.imwrite(gif_path, frames)
             self.ORIGINAL_IMAGES.append(gif_path)
@@ -118,6 +125,11 @@ class LowSignalDetector:
 
         paths = [[img['filename'] for img in enhanced_image['enhanced_by_alg']] for enhanced_image in
                  self.ENHANCED_IMAGES]
+
+        logging.info(f"Enhanced Images: {self.ENHANCED_IMAGES}")
+
+        if self.ENHANCED_IMAGES == list():
+            self.ERR = "User did not upload any readable image files."
 
         for i in range(len(self.images_by_filename)):
             self.DOWNLOAD_PATHS_BY_IMAGE.append(paths[i])
