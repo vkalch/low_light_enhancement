@@ -41,17 +41,18 @@ class LowSignalDetector:
     One instance of this class is created for every user.
     """
 
-    def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
-                 do_enhance: bool, show_circle: bool, output_folder: str):
+    def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int,
+                 colormap: list | str, use_lut: bool, do_enhance: bool, show_circle: bool, output_folder: str):
         """
-        Args:
-            images_by_filename: Filenames of images to enhance
-            algs: Algorithms to use
-            radius_denoising: Denoising radius
-            radius_circle: Radius of marker circle
-            colormap: Colormap to use
-            do_enhance: Whether to use opencv image enhancement
-            output_folder: Directory where enhanced images should be outputted
+        :param images_by_filename: Filenames of images to enhance
+        :param algs: Algorithms to use
+        :param radius_denoising: Denoising radius
+        :param radius_circle: Radius of marker circle
+        :param colormap: Colormap to use
+        :param use_lut: Whether to use LUT (if not using vanilla opencv colormaps)
+        :param do_enhance: Whether to use opencv image enhancement
+        :param show_circle: Whether to show marker circle
+        :param output_folder: Directory where enhanced images should be outputted
         """
         self.ORIGINAL_IMAGES = list()
         self.ENHANCED_IMAGES = list()
@@ -65,6 +66,7 @@ class LowSignalDetector:
         self.radius_circle = radius_circle
         self.algs = algs
         self.colormap = colormap
+        self.use_lut = use_lut
         self.do_enhance = do_enhance
         self.show_circle = show_circle
         self.output_folder = output_folder
@@ -80,9 +82,7 @@ class LowSignalDetector:
     def run_algorithm(self):
         """
         Setter for this ImageEnhancer instance variables. Runs algorithms on selected images.
-
-        Returns:
-            None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
+        :return: None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
         """
         logging.info(f"Running run_algorithm() on:\n{str(self)}")
 
@@ -116,7 +116,12 @@ class LowSignalDetector:
                 enhanced_image = self.detect_signal(self.images_by_filename[img_num], alg)
 
                 path = os.path.join(self.output_folder, f'image{img_num}_{abbr}.png')
-                enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
+                if self.use_lut:
+                    # TODO: Fix getting colormap from LUT
+                    # enhanced_image = cv2.LUT(enhanced_image, cv2.imread(self.colormap))
+                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=cv2.COLORMAP_BONE)
+                else:
+                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
                 cv2.imwrite(path, enhanced_image)
                 enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
 
