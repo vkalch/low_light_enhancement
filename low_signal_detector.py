@@ -71,13 +71,13 @@ class LowSignalDetector:
         self.show_circle = show_circle
         self.output_folder = output_folder
 
-    def get_id(self):
-        return self.ID
-
     def __str__(self):
         return (f"Low Signal Detector {self.get_id()}\nAlgs: {self.algs}\nImages: {self.images_by_filename}\n"
                 f"Circle Radius: {self.radius_circle}\nDenoising Radius: {self.radius_denoising}\n"
                 f"Colormap: {self.colormap}\nEnhance: {self.do_enhance}\nOutput Folder: {self.output_folder}")
+
+    def get_id(self):
+        return self.ID
 
     def run_algorithm(self):
         """
@@ -142,16 +142,11 @@ class LowSignalDetector:
 
         logging.info(f"Finished running algorithms. Total time: {round(time.time() - start_algs, 2)}s")
 
-    def enhance_image(self, image):
+    def enhance_image(self, image: np.array):
         """
-        Summary:
-            Enhances image with denoising and marking of the brightest spot
-
-        Args:
-            image (np.array): Image operations should be performed on
-
-        Returns:
-            image (np.array): Image with applied operation
+        Enhance an image using opencv
+        :param image: Image operations should be performed on
+        :return: Enhanced image
         """
         # denoise
         image = cv2.fastNlMeansDenoisingColored(image, None, self.radius_denoising,
@@ -163,14 +158,9 @@ class LowSignalDetector:
 
     def mark_circle(self, image):
         """
-        Summary:
-            Marks brightest spot on image with a circle.
-
-        Args:
-            image (np.array): Image to mark
-
-        Returns:
-            image (np.array): Marked image
+        Marks brightest spot on image with a circle.
+        :param image: Image to mark
+        :return: Marked image
         """
         # get brightest spot -> needs denoising
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(image)
@@ -181,15 +171,10 @@ class LowSignalDetector:
 
     def detect_signal(self, image: str, algorithm: list):
         """
-        Summary:
-            Apply an algorithm to an image
-
-        Args:
-            image (str): Filename of image algorithm should be applied to
-            algorithm: Algorithm to apply
-
-        Returns:
-            image (np.array): Enhanced image
+        Apply an algorithm to an image
+        :param image: Filename of image algorithm should be applied to
+        :param algorithm: Algorithm to apply
+        :return: Enhanced image
         """
         img = io.imread(image)
 

@@ -14,7 +14,13 @@ def get_colormaps():
     return colormaps
 
 
-def get_colormap_by_name(colormap_name):
+def get_colormap_by_name(colormap_name: str):
+    """
+    Get colormap by name.
+
+    :param colormap_name: Name of colormap to get
+    :return: Colormap as tuple
+    """
     for name, colormap in colormaps:
         if colormap_name == name:
             return colormap
