@@ -11,7 +11,9 @@ nmf = NMF(n_components=1)
 
 
 def get_algorithms():
-    """Returns a list of all algorithms used"""
+    """
+    :return: List of all algorithms
+    """
     return [
         ('Principal Component Analysis', 'pca', pca),
         ('Sparse Principal Component Analysis', 'spca', spca),
@@ -22,16 +24,12 @@ def get_algorithms():
     ]
 
 
-def get_algorithm(algorithm):
+def get_algorithm(algorithm: str):
     """
-    Summary:
-        Uses algs.py to return a scikit learn algorithm based on name or abbreviation
+    Returns a scikit learn algorithm based on name or abbreviation.
 
-    Args:
-        algorithm (str): The name or abbreviation of the algorithm to use
-
-    Returns:
-        algorithm: Instance of scikit learn algorithm with set hyperparameters
+    :param algorithm: The name or abbreviation of the algorithm to use.
+    :return: Instance of scikit learn algorithm with preset hyperparameters.
     """
     for name, abbr, alg in get_algorithms():
         if algorithm == name or algorithm == abbr:
@@ -40,14 +38,10 @@ def get_algorithm(algorithm):
 
 def get_algorithm_name(algorithm):
     """
-    Summary:
-        Uses algs.py to return a scikit learn algorithm based on name or abbreviation
+    Returns the name of a scikit learn algorithm.
 
-    Args:
-        algorithm (str): The abbreviation or instance of the algorithm to use
-
-    Returns:
-        algorithm: Unabbreviated name of algorithm
+    :param algorithm: Instance of scikit-learn algorithm
+    :return: Full name of algorithm
     """
     for name, abbr, alg in get_algorithms():
         if algorithm == abbr or algorithm == alg:

@@ -41,17 +41,18 @@ class LowSignalDetector:
     One instance of this class is created for every user.
     """
 
-    def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int, colormap: list,
-                 do_enhance: bool, show_circle: bool, output_folder: str):
+    def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int,
+                 colormap: list | str, use_lut: bool, do_enhance: bool, show_circle: bool, output_folder: str):
         """
-        Args:
-            images_by_filename: Filenames of images to enhance
-            algs: Algorithms to use
-            radius_denoising: Denoising radius
-            radius_circle: Radius of marker circle
-            colormap: Colormap to use
-            do_enhance: Whether to use opencv image enhancement
-            output_folder: Directory where enhanced images should be outputted
+        :param images_by_filename: Filenames of images to enhance
+        :param algs: Algorithms to use
+        :param radius_denoising: Denoising radius
+        :param radius_circle: Radius of marker circle
+        :param colormap: Colormap to use
+        :param use_lut: Whether to use LUT (if not using vanilla opencv colormaps)
+        :param do_enhance: Whether to use opencv image enhancement
+        :param show_circle: Whether to show marker circle
+        :param output_folder: Directory where enhanced images should be outputted
         """
         self.ORIGINAL_IMAGES = list()
         self.ENHANCED_IMAGES = list()
@@ -65,24 +66,23 @@ class LowSignalDetector:
         self.radius_circle = radius_circle
         self.algs = algs
         self.colormap = colormap
+        self.use_lut = use_lut
         self.do_enhance = do_enhance
         self.show_circle = show_circle
         self.output_folder = output_folder
-
-    def get_id(self):
-        return self.ID
 
     def __str__(self):
         return (f"Low Signal Detector {self.get_id()}\nAlgs: {self.algs}\nImages: {self.images_by_filename}\n"
                 f"Circle Radius: {self.radius_circle}\nDenoising Radius: {self.radius_denoising}\n"
                 f"Colormap: {self.colormap}\nEnhance: {self.do_enhance}\nOutput Folder: {self.output_folder}")
 
+    def get_id(self):
+        return self.ID
+
     def run_algorithm(self):
         """
         Setter for this ImageEnhancer instance variables. Runs algorithms on selected images.
-
-        Returns:
-            None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
+        :return: None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
         """
         logging.info(f"Running run_algorithm() on:\n{str(self)}")
 
@@ -116,7 +116,12 @@ class LowSignalDetector:
                 enhanced_image = self.detect_signal(self.images_by_filename[img_num], alg)
 
                 path = os.path.join(self.output_folder, f'image{img_num}_{abbr}.png')
-                enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
+                if self.use_lut:
+                    # TODO: Fix getting colormap from LUT
+                    # enhanced_image = cv2.LUT(enhanced_image, cv2.imread(self.colormap))
+                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=cv2.COLORMAP_BONE)
+                else:
+                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
                 cv2.imwrite(path, enhanced_image)
                 enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
 
@@ -137,16 +142,11 @@ class LowSignalDetector:
 
         logging.info(f"Finished running algorithms. Total time: {round(time.time() - start_algs, 2)}s")
 
-    def enhance_image(self, image):
+    def enhance_image(self, image: np.array):
         """
-        Summary:
-            Enhances image with denoising and marking of the brightest spot
-
-        Args:
-            image (np.array): Image operations should be performed on
-
-        Returns:
-            image (np.array): Image with applied operation
+        Enhance an image using opencv
+        :param image: Image operations should be performed on
+        :return: Enhanced image
         """
         # denoise
         image = cv2.fastNlMeansDenoisingColored(image, None, self.radius_denoising,
@@ -158,14 +158,9 @@ class LowSignalDetector:
 
     def mark_circle(self, image):
         """
-        Summary:
-            Marks brightest spot on image with a circle.
-
-        Args:
-            image (np.array): Image to mark
-
-        Returns:
-            image (np.array): Marked image
+        Marks brightest spot on image with a circle.
+        :param image: Image to mark
+        :return: Marked image
         """
         # get brightest spot -> needs denoising
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(image)
@@ -176,15 +171,10 @@ class LowSignalDetector:
 
     def detect_signal(self, image: str, algorithm: list):
         """
-        Summary:
-            Apply an algorithm to an image
-
-        Args:
-            image (str): Filename of image algorithm should be applied to
-            algorithm: Algorithm to apply
-
-        Returns:
-            image (np.array): Enhanced image
+        Apply an algorithm to an image
+        :param image: Filename of image algorithm should be applied to
+        :param algorithm: Algorithm to apply
+        :return: Enhanced image
         """
         img = io.imread(image)
 
