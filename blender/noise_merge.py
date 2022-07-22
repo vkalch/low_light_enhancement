@@ -26,10 +26,10 @@ import math
 
 # files will get stored in this folder too
 # directory must consist out of subfolders, one sequence per subfolder
-FILES_DIR = '/home/jonas/Downloads/blender'
+FILES_DIR = '/Users/avbalsam/Desktop/blender_animations/training_data_multiblob'
 OUTPUT_NAME = 'sample'
 # name of the subfolder where the merged files will get stored
-OUTPUT_DIR = 'merged_noise'
+OUTPUT_DIR = '/Users/avbalsam/Desktop/blender_animations/merged_noise_multiblob/merged_noise_multiblob'
 
 
 NOISE_AMOUNT_POISSON = 1
@@ -148,14 +148,14 @@ def format_output_images(files_dir:str, output_name:str, output_dir:str, noise):
         output_dir = f'{output_dir}(1)'
     
     # create directory
-    os.mkdir(f'{files_dir}/{output_dir}')
+    os.mkdir(f'{output_dir}')
     
     # create outputs mostly
-    while os.path.exists(f'{files_dir}/sample{i}'):
+    while os.path.exists(f'{files_dir}/{i}'):
         start = time.time()
         print(f"Iterating through sample{i}...")
-        output_path = f'{files_dir}/{output_dir}/{output_name}{i}.tiff'
-        merged = merge_tiffs(f'{files_dir}/sample{i}')
+        output_path = f'{output_dir}/{output_name}{i}.tiff'
+        merged = merge_tiffs(f'{files_dir}/{i}')
 
         if os.path.exists(output_path):
             if input("Output file already exists. " +
@@ -169,8 +169,7 @@ def format_output_images(files_dir:str, output_name:str, output_dir:str, noise):
             # Adds noise to image that was just outputted
             add_noise(output_path, noise)
             #add_gaussian_noise(output_path, noise)
-        print(f"Finished iterating through sample{i}. Time elapsed: " +
-              "{round(time.time()-start,2)}s")
+        print(f"Finished iterating through sample{i}. Time elapsed: {round(time.time()-start,2)}s")
         i += 1
     return
 
