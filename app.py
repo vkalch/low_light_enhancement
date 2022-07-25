@@ -8,7 +8,8 @@ Project: ISSI Weizmann Institute 2022
 Label: Product
 
 Summary:
-    This is the backend for a Flask application which incorporates our unsupervised learning methods.
+    This is the backend for a Flask application which incorporates our unsupervised learning methods and the template
+    file we generated.
 """
 
 import logging
@@ -18,7 +19,6 @@ import uuid
 from io import BytesIO
 from zipfile import ZipFile
 
-import cv2
 import flask
 from flask import Flask, render_template, request, send_from_directory, send_file, url_for
 
@@ -220,28 +220,29 @@ def algorithm():
     return render_template('submitted.html', user_id=lsd.ID)
 
 
-# Create folders to store user uploaded and enhanced images
-enhanced_image_folder = os.path.join('static', 'enhanced_data')
-upload_folder = os.path.join('static', 'uploads')
-app.config['ENHANCED_FOLDER'] = enhanced_image_folder
-app.config['UPLOAD_FOLDER'] = upload_folder
+if __name__ == '__main__':
+    # Create folders to store user uploaded and enhanced images
+    enhanced_image_folder = os.path.join('static', 'enhanced_data')
+    upload_folder = os.path.join('static', 'uploads')
+    app.config['ENHANCED_FOLDER'] = enhanced_image_folder
+    app.config['UPLOAD_FOLDER'] = upload_folder
 
-# Do not allow uploading files greater than 32 megabytes
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1000 * 1000
+    # Do not allow uploading files greater than 32 megabytes
+    app.config['MAX_CONTENT_LENGTH'] = 32 * 1000 * 1000
 
-# Set allowed extensions
-ALLOWED_EXTENSIONS = {'tiff', 'tif'}
+    # Set allowed extensions
+    ALLOWED_EXTENSIONS = {'tiff', 'tif'}
 
-# Make sure user upload and enhanced image folders exist
-if not (os.path.exists(enhanced_image_folder)):
-    os.makedirs(enhanced_image_folder)
+    # Make sure user upload and enhanced image folders exist
+    if not (os.path.exists(enhanced_image_folder)):
+        os.makedirs(enhanced_image_folder)
 
-if not (os.path.exists(upload_folder)):
-    os.makedirs(upload_folder)
+    if not (os.path.exists(upload_folder)):
+        os.makedirs(upload_folder)
 
-# Create a new instance of the LSD class to store user data
-LOW_SIGNAL_DETECTORS = list()
+    # Create a new instance of the LSD class to store user data
+    LOW_SIGNAL_DETECTORS = list()
 
-# Start the flask app
-port = int(os.environ.get('PORT', 5000))
-app.run(host='0.0.0.0', port=port)
+    # Start the flask app
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

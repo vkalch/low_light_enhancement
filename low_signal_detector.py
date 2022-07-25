@@ -27,7 +27,6 @@ from sklearn.preprocessing import MinMaxScaler
 import imageio.v3 as iio
 
 from algs import get_algorithm_name
-from exceptions import CorruptedFileException
 
 RGB = 3
 
@@ -82,6 +81,7 @@ class LowSignalDetector:
     def run_algorithm(self):
         """
         Setter for this ImageEnhancer instance variables. Runs algorithms on selected images.
+
         :return: None, sets self.ORIGINAL_IMAGES, self.ENHANCED_IMAGES, and self.DOWNLOAD_PATHS_BY_IMAGE
         """
         logging.info(f"Running run_algorithm() on:\n{str(self)}")
@@ -144,7 +144,8 @@ class LowSignalDetector:
 
     def enhance_image(self, image: np.array):
         """
-        Enhance an image using opencv
+        Enhance an image using opencv.
+
         :param image: Image operations should be performed on
         :return: Enhanced image
         """
@@ -159,6 +160,7 @@ class LowSignalDetector:
     def mark_circle(self, image):
         """
         Marks brightest spot on image with a circle.
+
         :param image: Image to mark
         :return: Marked image
         """
@@ -171,7 +173,8 @@ class LowSignalDetector:
 
     def detect_signal(self, image: str, algorithm: list):
         """
-        Apply an algorithm to an image
+        Apply an algorithm to an image.
+
         :param image: Filename of image algorithm should be applied to
         :param algorithm: Algorithm to apply
         :return: Enhanced image

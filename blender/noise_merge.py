@@ -31,7 +31,6 @@ OUTPUT_NAME = 'sample'
 # name of the subfolder where the merged files will get stored
 OUTPUT_DIR = '/Users/avbalsam/Desktop/blender_animations/merged_noise_multiblob/merged_noise_multiblob'
 
-
 NOISE_AMOUNT_POISSON = 1
 # specs gaussian noise
 MIN_NOISE = 0.0
@@ -39,18 +38,15 @@ MAX_NOISE = 2.0
 INCREMENT = 0.1
 
 
-"""
-Summary:
-    Merges .tiff files in the specified directory in alphabetical order and 
+def merge_tiffs(files_dir: str):
+    """
+    Merges .tiff files in the specified directory in alphabetical order and
         returns the merged file.
 
-Args:
-    files_dir (str): Directory which contains (only) all .tiff files to merge
-    
-Returns: 
-    merged: Merged .tiff file
-"""
-def merge_tiffs(files_dir:str):
+    :param files_dir: Directory which contains (only) all .tiff files to merge
+
+    :return: Merged .tiff file
+    """
     # get tif list
     try:
         tif_list = natsorted(os.listdir(files_dir))
@@ -66,26 +62,22 @@ def merge_tiffs(files_dir:str):
     return merged
 
 
-"""
-Summary:
-    Adds gaussian and poisson noise to full .tiff file and saves to output_path
-
-Args:
-    filename (str): The image to modify
-        output_path (str): Path to output file 
-        (including filename and .tiff extension).
-    noise_amount_gaussian: 
-        The amount of noise to add for gaussian noise (see scikit docs)
-    
-Returns:
-    void, saves images
-"""
 def add_noise(filename, noise_amount_gaussian=0.005, intensity=-0.15):
+    """
+    Summary:
+        Adds gaussian and poisson noise to full .tiff file and saves to output_path
+
+
+    :param filename: The image to modify
+    :param noise_amount_gaussian: The amount of noise to add for gaussian noise (see scikit docs)
+
+    :return: None, saves images
+    """
     # get img
     im = Image.open(filename)
 
     # add new folder to contain temp noisy images, deleted later on
-    if not(os.path.exists('./noisy')):
+    if not (os.path.exists('./noisy')):
         os.mkdir('./noisy')
 
     # iterate through frames
@@ -96,7 +88,7 @@ def add_noise(filename, noise_amount_gaussian=0.005, intensity=-0.15):
         img = np.asarray(frame.convert('L')).astype(np.uint8)
 
         # first iteration (noise_amount =  0) should add no noise
-        if not(math.isclose(noise_amount_gaussian, 0.0)):
+        if not (math.isclose(noise_amount_gaussian, 0.0)):
             # poisson noise -> signal dependent, thus image scaled
             img = (img / 255) * NOISE_AMOUNT_POISSON
             # apply noise
@@ -104,19 +96,19 @@ def add_noise(filename, noise_amount_gaussian=0.005, intensity=-0.15):
             # scale back
             img = ((255 * img) / NOISE_AMOUNT_POISSON).astype(np.uint8)
             # add gaussian noise as not signal dependent
-            img = random_noise(img, mode='gaussian', var=noise_amount_gaussian, 
+            img = random_noise(img, mode='gaussian', var=noise_amount_gaussian,
                                mean=intensity)
             # scale back (library method converts to [0, 1]) and convert
             img = (255 * img).astype(np.uint8)
-        
+
         # get image from array
         img = Image.fromarray(img)
         # save to temp directory
         img.save(f'./noisy/frame_{i}.tiff')
-    
+
     # merge
     img = merge_tiffs(f'./noisy')
-    
+
     # save merged file and delete temp directory
     if os.path.exists(filename):
         os.remove(filename)
@@ -124,32 +116,32 @@ def add_noise(filename, noise_amount_gaussian=0.005, intensity=-0.15):
     shutil.rmtree('./noisy')
     return
 
-"""
-Summary: 
-    Prepares directories for file output. 
-    Before running, make sure all .tiff files are grouped into subfolders 
-    with format sample{i}.
 
-Args:
-    files_dir (str): Directory in which input image folders are contained and 
-        to which files will be outputted
-    output_name (str): Template for output file names. A number will be added 
-        to the end of this to get output filename.
-    noise_mode: which noise mode to use
-    
-Returns:
-    void
-"""
-def format_output_images(files_dir:str, output_name:str, output_dir:str, noise):
+def format_output_images(files_dir: str, output_name: str, output_dir: str, noise: str):
+    """
+    Summary:
+        Prepares directories for file output.
+        Before running, make sure all .tiff files are grouped into subfolders
+        with format sample{i}.
+
+    :param files_dir: Directory in which input image folders are contained and
+            to which files will be outputted
+    :param output_name: Template for output file names. A number will be added
+            to the end of this to get output filename.
+    :param output_dir: The directory to output formatted images
+    :param noise: which noise mode to use
+
+    :return: None
+    """
     i = 0
     # take output directory
     output_dir = f'{output_dir}_{noise}'
     while os.path.exists(f'{files_dir}/{output_dir}'):
         output_dir = f'{output_dir}(1)'
-    
+
     # create directory
     os.mkdir(f'{output_dir}')
-    
+
     # create outputs mostly
     while os.path.exists(f'{files_dir}/{i}'):
         start = time.time()
@@ -168,12 +160,13 @@ def format_output_images(files_dir:str, output_name:str, output_dir:str, noise):
         if noise:
             # Adds noise to image that was just outputted
             add_noise(output_path, noise)
-            #add_gaussian_noise(output_path, noise)
-        print(f"Finished iterating through sample{i}. Time elapsed: {round(time.time()-start,2)}s")
+            # add_gaussian_noise(output_path, noise)
+        print(f"Finished iterating through sample{i}. Time elapsed: {round(time.time() - start, 2)}s")
         i += 1
     return
 
 
-# main, increases noise from MIN_NOISE to MAX_NOISE in INCREMENT steps
-for noise in np.arange(MIN_NOISE, MAX_NOISE, INCREMENT):
-    format_output_images(FILES_DIR, OUTPUT_NAME, OUTPUT_DIR, round(noise, 1))
+if __name__ == '__main__':
+    # main, increases noise from MIN_NOISE to MAX_NOISE in INCREMENT steps
+    for noise in np.arange(MIN_NOISE, MAX_NOISE, INCREMENT):
+        format_output_images(FILES_DIR, OUTPUT_NAME, OUTPUT_DIR, round(noise, 1))

@@ -1,2 +1,0 @@
-class CorruptedFileException(Exception):
-    pass
