@@ -177,18 +177,17 @@ def algorithm():
     """
     radius_denoising = int(request.form['noiseRadiusInput'])
     radius_circle = int(request.form['circleRadiusInput'])
+    autoencoder_image_size = int(request.form['autoencoderImageSizeInput'])
+    autoencoder_num_epochs = int(request.form['autoencoderNumEpochsInput'])
+    autoencoder_dense_layer_neurons = int(request.form['autoencoderDenseLayerInput'])
+
     algs = [(abbr, get_algorithm(abbr)) for abbr in request.form.getlist('algorithmCheckbox')]
     if algs == list():
         return render_template('error.html', msg=f"Please select one or more algorithms.", btn_href='/enhance',
                                btn_text='Go back', redirect_location='/enhance')
     colormap = request.form.get('colormapInput')
 
-    use_lut = False
-    if colormap is None:
-        use_lut = True
-        colormap = './colormaps/orange.png'
-    else:
-        colormap = get_colormap_by_name(colormap)
+    colormap = get_colormap_by_name(colormap)
 
     do_enhance = bool(request.form.get('enhanceCheckbox'))
     show_circle = bool(request.form.get('showCircleCheckbox'))
@@ -210,11 +209,13 @@ def algorithm():
 
     output_folder = os.path.join(app.config['ENHANCED_FOLDER'])
     lsd = LSD(images_by_filename=images_by_filename, algs=algs, radius_denoising=radius_denoising,
-              radius_circle=radius_circle, colormap=colormap, use_lut=use_lut, do_enhance=do_enhance,
-              show_circle=show_circle, output_folder=output_folder)
+              radius_circle=radius_circle, colormap=colormap, do_enhance=do_enhance,
+              show_circle=show_circle, autoencoder_image_size=autoencoder_image_size,
+              autoencoder_num_epochs=autoencoder_num_epochs,
+              autoencoder_dense_layer_neurons=autoencoder_dense_layer_neurons, output_folder=output_folder)
     LOW_SIGNAL_DETECTORS.append(lsd)
 
-    t = threading.Thread(target=lsd.run_algorithm)
+    t = threading.Thread(target=lsd.run_algorithms)
     t.start()
 
     return render_template('submitted.html', user_id=lsd.ID)

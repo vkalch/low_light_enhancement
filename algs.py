@@ -1,6 +1,8 @@
 # possible algorithms
 from sklearn.decomposition import PCA, SparsePCA, TruncatedSVD, FactorAnalysis, FastICA, NMF
 
+from low_signal_autoencoder import LowSignalAutoencoder
+
 pca = PCA(n_components=1)
 spca = SparsePCA(n_components=1, alpha=1, ridge_alpha=0.01,
                  max_iter=1000, tol=0.001, method='lars')
@@ -8,6 +10,7 @@ tsvd = TruncatedSVD(n_components=1)
 fa = FactorAnalysis(n_components=1, tol=0.001)
 ica = FastICA(n_components=1, random_state=0)
 nmf = NMF(n_components=1)
+autoencoder = LowSignalAutoencoder(image_size=56, num_epochs=200, dense_layer_neurons=2, show_loss_plot=False)
 
 
 def get_algorithms():
@@ -20,7 +23,8 @@ def get_algorithms():
         ('Truncated Singular Value Decomposition', 'tsvd', tsvd),
         ('Factor Analysis', 'fa', fa),
         ('Independent Component Analysis', 'ica', ica),
-        ('Non-negative Matrix Factorization', 'nmf', nmf)
+        ('Non-negative Matrix Factorization', 'nmf', nmf),
+        ('Autoencoder', 'autoencoder', autoencoder)
     ]
 
 
@@ -46,3 +50,14 @@ def get_algorithm_name(algorithm):
     for name, abbr, alg in get_algorithms():
         if algorithm == abbr or algorithm == alg:
             return name
+
+
+def is_autoencoder(algorithm):
+    """
+    Returns true if the algorithm passed is an autoencoder.
+
+    :param algorithm: The algorithm to check
+
+    :return: True if the algorithm is an autoencoder, false otherwise
+    """
+    return type(algorithm) == LowSignalAutoencoder
