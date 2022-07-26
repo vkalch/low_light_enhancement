@@ -1,7 +1,7 @@
 import logging
+import time
+import shutil
 
-import cv2
-import imageio
 import tensorflow as tf
 
 from keras import layers
@@ -9,37 +9,40 @@ from keras.models import Model
 from keras import optimizers
 
 import numpy as np
-import matplotlib.pyplot as plt
 import os
-import statistics
 import tifffile
 import skimage
-
-import time
-import shutil
 
 from PIL import Image, ImageSequence
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-# for 0.2 noise, 200 epochs is optimal
 
+# The base folder where training data and output files should be contained.
+BASE_DIR = '/Users/avbalsam/Desktop/blender_animations'
 
 # The path of a .tiff file in TIFF_DIR which will be processed by the autoencoder. If there are multiple noise levels,
 # ensure that this image name exists for all of them
-IMAGES_TO_PROCESS = ['sample1']
+IMAGES_TO_PROCESS = ['sample1', 'sample2', 'sample3']
 
 # The amount of noise to use -- make sure TIFF_DIR exists for this value
-NOISE_LEVELS = ['0.1', '0.2', '1.1', '1.9']
+NOISE_LEVELS = ['0.1', '0.2', '0.3', '0.4', '0.6', '0.9', '1.9']
 
-# The square size (in pixels) of the images in the training dataset
+# The square size (in pixels) of the images in the training dataset.
+# If there are fewer elements in this array than NOISE_LEVELS,
+# the later NOISE_LEVELS will use the last element of this array.
 IMAGE_SIZE = 56
 
-# The number of epochs to run
-NUM_EPOCHS = [100, 200, 200, 200]
+# The number of epochs to run.
+# If there are fewer elements in this array than NOISE_LEVELS,
+# the later NOISE_LEVELS will use the last element of this array.
+NUM_EPOCHS = [100, 200]
 
-DENSE_LAYER_NEURONS = [2, 2, 2, 2]
+# The number of neurons to put in the dense layer.
+# If there are fewer elements in this array than NOISE_LEVELS,
+# the later NOISE_LEVELS will use the last element of this array.
+DENSE_LAYER_NEURONS = [2]
 
 # Custom colormap for encoded images. Change this to whatever you like.
 CUSTOM_COLORMAP = ListedColormap(['black', 'indigo', 'navy', 'royalblue', 'lightseagreen',
@@ -47,97 +50,127 @@ CUSTOM_COLORMAP = ListedColormap(['black', 'indigo', 'navy', 'royalblue', 'light
                                   'goldenrod', '#FFAE42', 'orange', '#ff6e11', 'red'])
 
 
-def populate_train_dir(image_name):
+def populate_train_dir(train_dir, input_filepath):
     """
-    Creates one folder in TRAIN_DIR representing a single .tiff image based on passed filename.
+    Populates selected directory with frames of input file.
+
+    :param train_dir: Directory to save training data in.
+    :param input_filepath: Filepath of .tiff image to encode.
 
     :return: None, saves folder
     """
+    if os.path.exists(train_dir):
+        shutil.rmtree(train_dir)
 
-    if os.path.exists(f"{TRAIN_DIR}/{image_name}"):
-        shutil.rmtree(f"{TRAIN_DIR}/{image_name}")
-
-    os.makedirs(f"{TRAIN_DIR}/{image_name}")
+    os.makedirs(train_dir)
 
     start = time.time()
-    # Read tif file
-    im = Image.open(f'{TIFF_DIR}/{image_name}.tiff')
+    # Read .tiff file
+    im = Image.open(input_filepath)
 
     frame_counter = 0
     for frame in ImageSequence.Iterator(im):
         frame_counter += 1
-        frame.save(f'{TRAIN_DIR}/{image_name}/frame_{frame_counter}.png')
-    print(f"Saved file {image_name} in {round(time.time() - start, 2)}s")
+        frame.save(f'{train_dir}/frame_{frame_counter}.png')
+    print(f"Saved file {input_filepath} in {round(time.time() - start, 2)}s")
 
 
-def convolve(img):
+def encode_image(input_filepath, train_dir=None, output_dir=None, colormap='gray', image_size=56, num_epochs=200,
+                 dense_layer_neurons=2, show_loss_plot=False):
     """
-    Removes noise from image by averaging values of adjacent pixels.
+    Enhances a .tiff framesequence using an autoencoder and saves it to a file.
 
-    :param img: Image to denoise
-
-    :return: Denoised image
+    :param input_filepath: Filepath of input .tiff file. This is the only parameter that must be set up by the user.
+    :param train_dir: Directory in which training data will be stored. Defaults to the same directory as the raw image.
+    :param output_dir: Directory in which output data will be stored. Defaults to same directory as raw image.
+    :param colormap: The matplotlib colormap to apply to this image.
+    :param image_size: The size of the image to create.
+    :param num_epochs: The number of epochs to run.
+    :param dense_layer_neurons: The number of neurons to put in the smallest dense layer.
+    :param show_loss_plot: Whether to show the loss plot of the image.
+    :return: None, saves enhanced image to file
     """
+    input_filename = input_filepath.split("/")[-1]
+    input_dir_list = input_filepath.split("/")[:-1]
+    base_dir = str()
+    for i in input_dir_list:
+        base_dir += i
 
-    # Calculate mean pixel value (to save time on calculations later)
-    img_mean = np.mean(img)
+    # Set up directories
+    if train_dir is None:
+        train_dir = f"{base_dir}/training_data_{input_filename}"
 
-    # Find all black pixels
-    x, y = np.where(
-        (img[:, :] == 0)
-    )
+    if not(os.path.exists(train_dir)):
+        os.makedirs(train_dir)
 
-    # For each black pixel, set value to average value of neighbors (including diagonals)
-    for pix in range(len(x)):
-        neighbors = list()
-        try:
-            neighbors = [
-                img[x[pix] + 1, y[pix]],
-                img[x[pix] - 1, y[pix]],
-                img[x[pix], y[pix] + 1],
-                img[x[pix], y[pix] - 1],
-                img[x[pix] + 1, y[pix] + 1],
-                img[x[pix] - 1, y[pix] - 1],
-                img[x[pix] - 1, y[pix] + 1],
-                img[x[pix] + 1, y[pix] - 1]
-            ]
-            img[x[pix], y[pix]] = statistics.mean(neighbors)
-        except IndexError:
-            img[x[pix], y[pix]] = img_mean
+    if output_dir is None:
+        output_dir = f"{base_dir}/encoded_images_{input_filename}"
 
-    return img
+    if not(os.path.exists(output_dir)):
+        os.makedirs(output_dir)
 
+    if populate_train_dir(train_dir, input_filepath) == "Training directory exists" and \
+            input('Output dir already exists. Would you like to delete it? (Y/N)') == 'Y':
+        shutil.rmtree(train_dir)
+        populate_train_dir(train_dir, input_filepath)
 
-def plot_figures(figures, nrows=1, ncols=1, cmap=CUSTOM_COLORMAP):
-    """Plot a dictionary of figures.
+    # Get dataset from directory
+    train_dataset = tf.keras.preprocessing.image_dataset_from_directory(f"{train_dir}", label_mode=None,
+                                                                        image_size=(image_size, image_size), shuffle=False,
+                                                                        color_mode='grayscale')
 
-    :param figures: <title, figure> dictionary
-    :param ncols: number of columns of subplots wanted in the display
-    :param nrows: number of rows of subplots wanted in the figure
-    :param cmap: Colormap to use
+    # Normalize color values
+    train_dataset = train_dataset.map(lambda x: x / 255)
 
-    :return: None, plots selected images
-    """
-    fig, axeslist = plt.subplots(ncols=ncols, nrows=nrows)
-    for ind, title in enumerate(figures):
-        axeslist.ravel()[ind].imshow(figures[title], cmap=cmap)
-        axeslist.ravel()[ind].set_title(title)
-        axeslist.ravel()[ind].set_axis_off()
-    plt.tight_layout()  # optional
+    # Combine training and test datasets (if we get test data, replace the second
+    # "train_dataset" with the test dataset)
+    zipped_ds = tf.data.Dataset.zip((train_dataset, train_dataset))
 
+    # Make autoencoder
+    encoder_input = layers.Input(shape=(image_size, image_size, 1), name='img')
+    flatten = layers.Flatten()(encoder_input)
+    dense = layers.Dense(784, activation='relu')(flatten)
+    dense = layers.Dense(512, activation='relu')(dense)
+    dense = layers.Dense(128, activation='relu')(dense)
+    encoder_output = layers.Dense(dense_layer_neurons, activation='linear')(dense)
 
-def encode_tiff(f_name, output_name, cmap=CUSTOM_COLORMAP):
-    """
-    Runs a full .tiff file through the autoencoder
+    encoder = Model(encoder_input, encoder_output, name='encoder')
 
-    :param f_name: Filename
-    :param output_name: Output filename
-    :param cmap: Colormap to use
+    dense = layers.Dense(128, activation='relu')(encoder_output)
+    dense = layers.Dense(512, activation='relu')(dense)
+    dense = layers.Dense(784, activation='relu')(dense)
+    dense = layers.Dense(image_size * image_size, activation='relu')(dense)
 
-    :return: None, saves encoded images
-    """
-    image = tifffile.imread(f_name)
-    resized_data = skimage.transform.resize(image, (IMAGE_SIZE, IMAGE_SIZE))
+    decoder_output = layers.Reshape((image_size, image_size, 1))(dense)
+
+    decoder = Model(encoder_output, decoder_output, name='decoder')
+
+    autoencoder = Model(encoder_input, decoder(encoder(encoder_input)))
+
+    logging.info(autoencoder.summary())
+
+    # Compile encoder using optimizer
+    opt = optimizers.Adam(lr=0.001, decay=1e-12)
+    autoencoder.compile(opt, loss='mse')
+
+    # ============================================== Fitting =================================================
+    history = autoencoder.fit(zipped_ds,
+                              epochs=num_epochs,
+                              batch_size=25,
+                              verbose=0,
+                              )
+    # ========================================================================================================
+
+    # Plot loss
+    loss = history.history['loss']
+    plt.plot(range(num_epochs), loss, 'bo', label='Training loss')
+    plt.title(f'Training loss {input_filename}')
+    plt.legend()
+    if show_loss_plot:
+        plt.show()
+
+    image = tifffile.imread(input_filepath)
+    resized_data = skimage.transform.resize(image, (image_size, image_size))
 
     img_np = resized_data.T
 
@@ -147,35 +180,22 @@ def encode_tiff(f_name, output_name, cmap=CUSTOM_COLORMAP):
     i = 0
     for frame in img_np:
         i += 1
-        # print(f"Processing frame {i}. Shape={frame.shape}...")
-        ae_out = autoencoder.predict(frame.reshape(-1, IMAGE_SIZE, IMAGE_SIZE, 1)).reshape(IMAGE_SIZE, IMAGE_SIZE)
-        raw_data = frame.reshape(-1, IMAGE_SIZE, IMAGE_SIZE, 1)
-        convolved = convolve(ae_out.reshape(IMAGE_SIZE, IMAGE_SIZE))
+        ae_out = autoencoder.predict(frame.reshape(-1, image_size, image_size, 1)).reshape(image_size, image_size)
+        raw_data = frame.reshape(-1, image_size, image_size, 1)
 
-        raw_data = raw_data[0].reshape(IMAGE_SIZE, IMAGE_SIZE)
-        figures = {
-            "Original Image": raw_data,
-            "Encoded Image": ae_out,
-            # "Encoded + Denoised": convolved,
-            # "Original": raw_data[0][0].reshape(IMAGE_SIZE,IMAGE_SIZE),
-            # "Encoded": ae_out[0].reshape(IMAGE_SIZE,IMAGE_SIZE),
-            # "E + D": convolved,
-        }
-        # plot_figures(figures, 1, 2, cmap)
+        raw_data = raw_data[0].reshape(image_size, image_size)
 
         if not (os.path.exists(ENCODED_IMAGES_DIR)):
             os.mkdir(ENCODED_IMAGES_DIR)
 
-        if not (os.path.exists(f"{ENCODED_IMAGES_DIR}/{output_name}/raw_data")):
-            os.makedirs(f'{ENCODED_IMAGES_DIR}/{output_name}/raw_data')
+        if not (os.path.exists(f"{output_dir}/raw_data")):
+            os.makedirs(f'{output_dir}/raw_data')
 
-        if not (os.path.exists(f"{ENCODED_IMAGES_DIR}/{output_name}/ae_out")):
-            os.makedirs(f'{ENCODED_IMAGES_DIR}/{output_name}/ae_out')
+        if not (os.path.exists(f"{output_dir}/ae_out")):
+            os.makedirs(f'{output_dir}/ae_out')
 
-        plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/raw_data/frame_{i}.png', raw_data, cmap=cmap)
-        plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/ae_out/frame_{i}.png', ae_out, cmap=cmap)
-        # plt.savefig(f'{ENCODED_IMAGES_DIR}/{output_name}/raw_data/frame_{i}.png', bbox_inches='tight', cmap=cmap)
-        # plt.show()
+        plt.imsave(f'{output_dir}/raw_data/frame_{i}.png', raw_data, cmap=colormap)
+        plt.imsave(f'{output_dir}/ae_out/frame_{i}.png', ae_out, cmap=colormap)
 
         enhanced_frames.append(ae_out)
         raw_frames.append(raw_data)
@@ -183,97 +203,34 @@ def encode_tiff(f_name, output_name, cmap=CUSTOM_COLORMAP):
     final_image = np.mean(enhanced_frames, axis=0)
     raw_data_mean = np.mean(raw_frames, axis=0)
 
-    plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/enhanced_image_final_plt_color.png', final_image, cmap=cmap)
-    plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/raw_image_mean_final_plt_color.png', raw_data_mean, cmap=cmap)
-    plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/enhanced_image_final_plt_gray.png', final_image, cmap='gray')
-    plt.imsave(f'{ENCODED_IMAGES_DIR}/{output_name}/raw_image_mean_final_plt_gray.png', raw_data_mean, cmap='gray')
+    plt.imsave(f'{output_dir}/enhanced_image_final_plt_color.png', final_image, cmap=colormap)
+    plt.imsave(f'{output_dir}/raw_image_mean_final_plt_color.png', raw_data_mean, cmap=colormap)
+    plt.imsave(f'{output_dir}/enhanced_image_final_plt_gray.png', final_image, cmap='gray')
+    plt.imsave(f'{output_dir}/raw_image_mean_final_plt_gray.png', raw_data_mean, cmap='gray')
 
 
 for NOISE in NOISE_LEVELS:
-    start_noise = time.time()
-    print(f"Starting noise level {NOISE}...")
+    for image_name in IMAGES_TO_PROCESS:
+        start_noise = time.time()
+        print(f"Starting noise level {NOISE}...")
 
-    # Directory which contains training data in .tiff format with convention "output_{i}.tiff" where "i" increases
-    TIFF_DIR = f'/Users/avbalsam/Downloads/train_data_avi/merged_noise_{NOISE}'
+        # Directory which contains training data in .tiff format with convention "output_{i}.tiff" where "i" increases
+        TIFF_DIR = f'{BASE_DIR}/training_data/merged_noise_{NOISE}'
 
-    # Directory which will contain reformatted training data
-    TRAIN_DIR = f'/Users/avbalsam/Downloads/train_data_avi/merged_noise_png_by_folder_{NOISE}_{IMAGE_SIZE}'
+        # Directory which will contain reformatted training data
+        TRAIN_DIR = f'{BASE_DIR}/training_data/merged_noise_png_by_folder_{NOISE}_{IMAGE_SIZE}'
 
-    # Directory which will contain encoded images
-    ENCODED_IMAGES_DIR = f'/Users/avbalsam/Downloads/train_data_avi/encoded_images_by_folder_{NOISE}_{IMAGE_SIZE}'
+        # Directory which will contain encoded images
+        ENCODED_IMAGES_DIR = f'{BASE_DIR}/encoded_images_by_folder_{NOISE}_{IMAGE_SIZE}'
 
-    # Get the number of epochs to use for this noise level
-    epochs = NUM_EPOCHS[NOISE_LEVELS.index(NOISE)]
+        for image_to_encode in IMAGES_TO_PROCESS:
+            start_image = time.time()
+            print(f"Starting image {image_to_encode}...")
 
-    # Get the number of dense layer neurons to use on this noise level
-    dense_layer_neurons = DENSE_LAYER_NEURONS[NOISE_LEVELS.index(NOISE)]
+            encode_image(input_filepath=f'{TIFF_DIR}/{image_to_encode}.tiff',
+                         train_dir=f"{TRAIN_DIR}/{image_name}",
+                         output_dir=f"{ENCODED_IMAGES_DIR}/{image_name}")
 
-    for IMAGE_TO_PROCESS in IMAGES_TO_PROCESS:
-        start_image = time.time()
-        print(f"Starting image {IMAGE_TO_PROCESS}...")
+            print(f"Finished image {image_to_encode} in {round(time.time() - start_image, 2)}s")
 
-        if populate_train_dir(IMAGE_TO_PROCESS) == "Training directory exists" and \
-                input('Output dir already exists. Would you like to delete it? (Y/N)') == 'Y':
-            shutil.rmtree(TRAIN_DIR)
-            populate_train_dir(IMAGE_TO_PROCESS)
-
-        # Get dataset from directory
-        train_dataset = tf.keras.preprocessing.image_dataset_from_directory(f"{TRAIN_DIR}/{IMAGE_TO_PROCESS}", label_mode=None,
-                                                                            image_size=(IMAGE_SIZE, IMAGE_SIZE), shuffle=False,
-                                                                            color_mode='grayscale')
-
-        # Normalize color values
-        train_dataset = train_dataset.map(lambda x: x / 255)
-
-        # Combine training and test datasets (if we get test data, replace the second
-        # "train_dataset" with the test dataset)
-        zipped_ds = tf.data.Dataset.zip((train_dataset, train_dataset))
-
-        # Make autoencoder
-        encoder_input = layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE, 1), name='img')
-        flatten = layers.Flatten()(encoder_input)
-        dense = layers.Dense(784, activation='relu')(flatten)
-        dense = layers.Dense(512, activation='relu')(dense)
-        dense = layers.Dense(128, activation='relu')(dense)
-        encoder_output = layers.Dense(dense_layer_neurons, activation='linear')(dense)
-
-        encoder = Model(encoder_input, encoder_output, name='encoder')
-
-        dense = layers.Dense(128, activation='relu')(encoder_output)
-        dense = layers.Dense(512, activation='relu')(dense)
-        dense = layers.Dense(784, activation='relu')(dense)
-        dense = layers.Dense(IMAGE_SIZE * IMAGE_SIZE, activation='relu')(dense)
-
-        decoder_output = layers.Reshape((IMAGE_SIZE, IMAGE_SIZE, 1))(dense)
-
-        decoder = Model(encoder_output, decoder_output, name='decoder')
-
-        autoencoder = Model(encoder_input, decoder(encoder(encoder_input)))
-
-        logging.info(autoencoder.summary())
-
-        # Compile encoder using optimizer
-        opt = optimizers.Adam(lr=0.001, decay=1e-12)
-        autoencoder.compile(opt, loss='mse')
-
-        # ============================================== Fitting =================================================
-        history = autoencoder.fit(zipped_ds,
-                                  epochs=epochs,
-                                  batch_size=25,
-                                  verbose=0,
-                                  )
-        # ========================================================================================================
-
-        # Plot loss
-        loss = history.history['loss']
-        epochs = range(epochs)
-        plt.plot(epochs, loss, 'bo', label='Training loss')
-        plt.title('Training loss')
-        plt.legend()
-        # plt.show()
-
-        encode_tiff(f'{TIFF_DIR}/{IMAGE_TO_PROCESS}.tiff', f"{IMAGE_TO_PROCESS}.tiff",
-                    cmap=CUSTOM_COLORMAP)
-
-        print(f"Finished image {IMAGE_TO_PROCESS} in {round(time.time()-start_image, 2)}s")
-    print(f"Finished noise level {NOISE} in {round(time.time()-start_noise, 2)}s")
+        print(f"Finished noise level {NOISE} in {round(time.time()-start_noise, 2)}s")
