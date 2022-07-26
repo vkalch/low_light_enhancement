@@ -28,14 +28,18 @@
                         </div>
                         {% endfor %}
                     </div>
+                    <h3>Autoencoder Settings</h3>
                     <div class="form-group">
-                        <label for="circleRadiusInput">Radius of Marker Circle</label>
-                        <input type="number" class="form-control" id="circleRadiusInput" name="circleRadiusInput" value="20">
+                        <label for="autoencoderImageSizeInput">Autoencoder Image Size (the bigger this number is, the longer the operation will take)</label>
+                        <input type="number" class="form-control" id="autoencoderImageSizeInput" name="autoencoderImageSizeInput" value="128">
+
+                        <label for="autoencoderNumEpochsInput">Autoencoder Epochs (the bigger this number is, the longer the operation will take)</label>
+                        <input type="number" class="form-control" id="autoencoderNumEpochsInput" name="autoencoderNumEpochsInput" value="200">
+
+                        <label for="autoencoderDenseLayerInput">Autoencoder Dense Layer Neurons (don't change this value unless you really know what you're doing)</label>
+                        <input type="number" class="form-control" id="autoencoderDenseLayerInput" name="autoencoderDenseLayerInput" value="2">
                     </div>
-                    <div class="form-group">
-                        <label for="noiseRadiusInput">Denoising Radius</label>
-                        <input type="number" class="form-control" id="noiseRadiusInput" name="noiseRadiusInput" value="30">
-                    </div>
+                    <h3>Colormaps</h3>
                     <div class="form-group">
                         {% for name, colormap in colormaps %}
                         <div class="form-check form-check-inline">
@@ -44,19 +48,26 @@
                         </div>
                         {% endfor %}
                     </div>
+                    <h3>Image Enhancement</h3>
                     <div class="form-group">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" value=True id="enhanceCheckbox" name="enhanceCheckbox" checked>
+                            <input class="form-check-input" type="checkbox" value=True id="enhanceCheckbox" name="enhanceCheckbox">
                             <label class="form-check-label" for="enhanceCheckbox">
                                 Enhance Output Image
                             </label>
                         </div>
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" value=True id="showCircleCheckbox" name="showCircleCheckbox" checked>
+                            <input class="form-check-input" type="checkbox" value=True id="showCircleCheckbox" name="showCircleCheckbox">
                             <label class="form-check-label" for="showCircleCheckbox">
                                 Show Circle
                             </label>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="circleRadiusInput">Radius of Marker Circle (marker circle will only appear if "Show Circle" is checked)</label>
+                        <input type="number" class="form-control" id="circleRadiusInput" name="circleRadiusInput" value="10">
+                        <label for="noiseRadiusInput">Denoising Radius (denoising will only be applied if "Enhance Output Image" is checked)</label>
+                        <input type="number" class="form-control" id="noiseRadiusInput" name="noiseRadiusInput" value="5">
                     </div>
                 <button type="submit" class="btn btn-primary mb-2">Enhance Images</button>
             </form>

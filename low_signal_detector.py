@@ -22,13 +22,14 @@ import logging
 
 import cv2
 import numpy as np
+from PIL import Image
+from matplotlib import pyplot as plt
 from skimage import io
 from sklearn.preprocessing import MinMaxScaler
 import imageio.v3 as iio
 
-from algs import get_algorithm_name
-
-RGB = 3
+from algs import get_algorithm_name, is_autoencoder
+import lsd_regression as lsr
 
 # transform features to [0, 1] -> default
 min_max_scaler = MinMaxScaler()
@@ -39,18 +40,20 @@ class LowSignalDetector:
     Class to handle image enhancement and store information about the images the user has enhanced.
     One instance of this class is created for every user.
     """
-
     def __init__(self, images_by_filename: list, algs: list, radius_denoising: int, radius_circle: int,
-                 colormap: list | str, use_lut: bool, do_enhance: bool, show_circle: bool, output_folder: str):
+                 colormap: str, do_enhance: bool, show_circle: bool, autoencoder_image_size: int,
+                 autoencoder_num_epochs: int, autoencoder_dense_layer_neurons: int, output_folder: str):
         """
         :param images_by_filename: Filenames of images to enhance
         :param algs: Algorithms to use
         :param radius_denoising: Denoising radius
         :param radius_circle: Radius of marker circle
         :param colormap: Colormap to use
-        :param use_lut: Whether to use LUT (if not using vanilla opencv colormaps)
         :param do_enhance: Whether to use opencv image enhancement
         :param show_circle: Whether to show marker circle
+        :param autoencoder_image_size: Size of images used for autoencoder
+        :param autoencoder_num_epochs: Number of epochs for autoencoder to run
+        :param autoencoder_dense_layer_neurons: Number of neurons in the dense layer
         :param output_folder: Directory where enhanced images should be outputted
         """
         self.ORIGINAL_IMAGES = list()
@@ -63,9 +66,12 @@ class LowSignalDetector:
         self.images_by_filename = images_by_filename
         self.radius_denoising = radius_denoising
         self.radius_circle = radius_circle
+        self.autoencoder_image_size = autoencoder_image_size
+        self.autoencoder_num_epochs = autoencoder_num_epochs
+        self.autoencoder_dense_layer_neurons = autoencoder_dense_layer_neurons
         self.algs = algs
         self.colormap = colormap
-        self.use_lut = use_lut
+
         self.do_enhance = do_enhance
         self.show_circle = show_circle
         self.output_folder = output_folder
@@ -78,7 +84,7 @@ class LowSignalDetector:
     def get_id(self):
         return self.ID
 
-    def run_algorithm(self):
+    def run_algorithms(self):
         """
         Setter for this ImageEnhancer instance variables. Runs algorithms on selected images.
 
@@ -108,24 +114,52 @@ class LowSignalDetector:
             iio.imwrite(gif_path, frames)
             self.ORIGINAL_IMAGES.append(gif_path)
 
-            # self.ORIGINAL_IMAGES.append(self.images_by_filename[img_num])
             enhanced_image_by_alg = list()
             for abbr, alg in self.algs:
                 start = time.time()
                 logging.info(f"Starting {abbr} on {self.images_by_filename[img_num]}...")
-                enhanced_image = self.detect_signal(self.images_by_filename[img_num], alg)
+
+                if is_autoencoder(alg):
+                    start = time.time()
+                    print("Using autoencoder...")
+                    enhanced_image = alg.encode(self.images_by_filename[img_num],
+                                                image_size=self.autoencoder_image_size,
+                                                num_epochs=self.autoencoder_num_epochs,
+                                                dense_layer_neurons=self.autoencoder_dense_layer_neurons
+                                                )
+                    print(f"Finished with autoencoder in {round(time.time()-start, 2)}s")
+                else:
+                    print("Using regression methods...")
+                    enhanced_image = lsr.detect_signal(self.images_by_filename[img_num], alg)
+                    print("Finished using regression methods...")
 
                 path = os.path.join(self.output_folder, f'image{img_num}_{abbr}.png')
-                if self.use_lut:
-                    # TODO: Fix getting colormap from LUT
-                    # enhanced_image = cv2.LUT(enhanced_image, cv2.imread(self.colormap))
-                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=cv2.COLORMAP_BONE)
-                else:
-                    enhanced_image = cv2.applyColorMap(enhanced_image, colormap=self.colormap)
-                cv2.imwrite(path, enhanced_image)
+
+                # Convert to grayscale so matplotlib can apply colormap
+                plt.imsave(path, enhanced_image)
+                enhanced_image = Image.open(path).convert('L')
+                enhanced_image.save(path)
+
+                enhanced_image = io.imread(path)
+                plt.imsave(path, enhanced_image, cmap=self.colormap)
+
+                if self.do_enhance or self.show_circle:
+                    enhanced_image_cv = cv2.imread(path)
+                    if self.do_enhance:
+                        enhanced_image_cv = self.denoise_image(enhanced_image_cv)
+
+                    # convert to cv image grayscale
+                    enhanced_image_cv = cv2.cvtColor(enhanced_image_cv, cv2.COLOR_BGR2GRAY)
+
+                    if self.show_circle:
+                        enhanced_image_cv = self.mark_circle(enhanced_image_cv)
+
+                    cv2.imwrite(path, enhanced_image_cv)
+
                 enhanced_image_by_alg.append({"alg_name": f"{get_algorithm_name(abbr)}", "filename": path})
 
-                logging.info(f"Finished {abbr} on {self.images_by_filename[img_num]} in {round(time.time() - start, 2)}s")
+                logging.info(
+                    f"Finished {abbr} on {self.images_by_filename[img_num]} in {round(time.time() - start, 2)}s")
 
             self.ENHANCED_IMAGES.append({"img_num": img_num, "enhanced_by_alg": enhanced_image_by_alg})
 
@@ -142,7 +176,7 @@ class LowSignalDetector:
 
         logging.info(f"Finished running algorithms. Total time: {round(time.time() - start_algs, 2)}s")
 
-    def enhance_image(self, image: np.array):
+    def denoise_image(self, image: np.array):
         """
         Enhance an image using opencv.
 
@@ -152,8 +186,6 @@ class LowSignalDetector:
         # denoise
         image = cv2.fastNlMeansDenoisingColored(image, None, self.radius_denoising,
                                                 self.radius_denoising, 7, 15)
-        # convert to cv image grayscale
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         return image
 
@@ -168,50 +200,5 @@ class LowSignalDetector:
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(image)
         # mark with circle
         cv2.circle(image, maxLoc, self.radius_circle, (255, 0, 0), 1)
-
-        return image
-
-    def detect_signal(self, image: str, algorithm: list):
-        """
-        Apply an algorithm to an image.
-
-        :param image: Filename of image algorithm should be applied to
-        :param algorithm: Algorithm to apply
-        :return: Enhanced image
-        """
-        img = io.imread(image)
-
-        # take img dimensions and reshape
-        if img.ndim == 3:
-            frames, y, x = img.shape
-            imr = np.reshape(img, (frames, x * y))
-        else:
-            frames, y, x, rgb = img.shape
-            imr = np.reshape(img, (frames, x * y * RGB))
-
-        # scale img into [0,1]
-        imt = min_max_scaler.fit_transform(imr.T)
-
-        output = algorithm.fit_transform(imt)
-
-        output = min_max_scaler.fit_transform(output)
-
-        if img.ndim == 3:
-            image = np.reshape(output[:, 0], (y, x))
-        else:
-            image = np.reshape(output[:, 0], (y, x, RGB))
-
-        # scale to image range
-        image = np.array(image * 255).astype('uint8')
-
-        # convert to cv image BGR if source was greyscale
-        if img.ndim == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
-        if self.do_enhance:
-            image = self.enhance_image(image)
-
-        if self.show_circle:
-            image = self.mark_circle(image)
 
         return image

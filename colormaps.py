@@ -1,12 +1,19 @@
-import cv2
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
+custom_cmap = ListedColormap(['black', 'indigo', 'navy', 'royalblue', 'lightseagreen',
+                              'green', '#9CA84A', 'limegreen', '#E3F56C', 'yellow',
+                              'goldenrod', '#FFAE42', 'orange', '#ff6e11', 'red'])
 
 colormaps = [
-    ('Jet', cv2.COLORMAP_JET),
-    ('Rainbow 1', cv2.COLORMAP_HSV),
-    ('Rainbow 2', cv2.COLORMAP_RAINBOW),
-    ('Grayscale', cv2.COLORMAP_BONE),
-    ('Red', cv2.COLORMAP_HOT),
-    ('Blue-Pink', cv2.COLORMAP_COOL)
+    ('Default', custom_cmap),
+    ('Jet', 'jet'),
+    ('HSV', 'hsv'),
+    ('Rainbow 1', 'rainbow'),
+    ('Rainbow 2', 'gist_rainbow'),
+    ('Grayscale', 'Greys'),
+    ('Red', 'YlOrRd'),
+    ('Blue-Red', 'bwr')
 ]
 
 
@@ -19,7 +26,8 @@ def get_colormap_by_name(colormap_name: str):
     Get colormap by name.
 
     :param colormap_name: Name of colormap to get
-    :return: Colormap as tuple
+
+    :return: Matplotlib usable colormap
     """
     for name, colormap in colormaps:
         if colormap_name == name:
