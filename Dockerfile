@@ -15,5 +15,5 @@ RUN pip3 install -r requirements.txt
 #Expose the required port
 EXPOSE 5000
 
-#Run the command
-CMD gunicorn main:app
+CMD ["./main.py"]
+ENTRYPOINT ["python"]
