@@ -105,8 +105,8 @@ def enhanced_images(detector_id):
                                    btn_text='Go back', redirect_location='/enhance')
         else:
             return render_template('error.html', msg="Your images have not yet finished processing. They should load "
-                                                     "automatically. If they do not, click on the button below. The"
-                                                     "enhancement process may take a couple minutes, depending on"
+                                                     "automatically. If they do not, click on the button below. The "
+                                                     "enhancement process may take a couple minutes, depending on "
                                                      "server traffic and the algorithms you chose. Please be patient.",
                                    btn_href=url_for('enhanced_images', detector_id=detector_id),
                                    btn_text="Attempt to Load Images")
