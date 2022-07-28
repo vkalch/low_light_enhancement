@@ -21,6 +21,7 @@ import time
 import shutil
 import uuid
 
+import imageio
 import tensorflow as tf
 
 from keras import layers
@@ -31,10 +32,12 @@ import numpy as np
 import os
 import tifffile
 import skimage
+import multipagetiff as mtif
 
 from PIL import Image, ImageSequence
 
 import matplotlib.pyplot as plt
+from skimage import io
 
 
 def populate_train_dir(train_dir, input_filepath):
@@ -221,9 +224,31 @@ class LowSignalAutoencoder:
             enhanced_frames.append(ae_out)
             raw_frames.append(raw_data)
 
-        final_image = np.multiply(np.mean(enhanced_frames, axis=0), 10 ** 3)
+        # Create .tiff of encoded frames (for testing purposes)
+        with tifffile.TiffWriter(f"{train_dir}/encoded_image.tiff") as tiff:
+            for img in enhanced_frames:
+                tiff.save(img)
 
+        stack = mtif.Stack(np.array(enhanced_frames))
+        plot = mtif.flatten(stack)
+        plt.imsave(f"{train_dir}/color_coded_image.png", plot)
+
+        # final_image = np.multiply(np.mean(enhanced_frames, axis=0), 10 ** 3)
+
+        # Convert to grayscale
+        img = Image.open(f"{train_dir}/color_coded_image.png").convert('L')
+        img.save(f"{train_dir}/color_coded_image.png")
+
+        final_image = io.imread(f"{train_dir}/color_coded_image.png")
         # Remove directory with training data for the next guy
         shutil.rmtree(train_dir)
 
-        return convolve(final_image)
+        # This function no longer works since we're using png format
+        final_image = convolve(final_image)
+        return final_image
+
+
+if __name__ == '__main__':
+    INPUT_FILEPATH = ''
+    a = LowSignalAutoencoder()
+    a.encode(INPUT_FILEPATH)

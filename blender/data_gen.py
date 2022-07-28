@@ -1,4 +1,15 @@
-'''
+bl_info = {
+    # required
+    'name': 'Blender Bioluminescence Imaging',
+    'blender': (2, 93, 0),
+    'category': 'Object',
+    # optional
+    'version': (1, 0, 0),
+    'author': 'Avi Balsam',
+    'description': 'Blender addon for practical synthetic data generation',
+}
+
+"""
 File: data_gen_test_discrete.blend
 
 Author 1: J. Kuehne
@@ -26,7 +37,8 @@ Requirements: The python library scipy has to be installed. As blender uses its
         the commands have to be executed relative to that file)
         PATH_TO_BLENDER_INSTALLATION/.../python3.x -m ensurepip --upgrade
         PATH_TO_BLENDER_INSTALLATION/.../python3.x -m pip install scipy
-'''
+"""
+
 import logging
 
 import bpy
@@ -34,7 +46,87 @@ import random
 import math
 from scipy import interpolate
 
-output_path = "/Users/avbalsam/Desktop/blender_animations/training_data_multiblob"
+
+class ExamplePanel(bpy.types.Panel):
+    bl_idname = 'VIEW3D_PT_example_panel'
+    bl_label = 'Example Panel'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        self.layout.label(text='Hello there')
+
+
+class BlobGeneratorPanel(bpy.types.Panel):
+    bl_idname = 'VIEW3D_PT_object_renamer'
+    bl_label = 'Add Blobs'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        col = self.layout.column()
+        for (prop_name, _) in ADD_BLOB_PROPS:
+            row = col.row()
+            row.prop(context.scene, prop_name)
+
+        col.operator('opr.object_add_blob_operator', text='Add Blob')
+
+        for (prop_name, _) in RENDER_SCENE_PROPS:
+            row = col.row()
+            row.prop(context.scene, prop_name)
+
+        col.operator('opr.object_render_scene_operator', text='Render Scene')
+
+
+class BlobGeneratorOperator(bpy.types.Operator):
+    bl_idname = 'opr.object_add_blob_operator'
+    bl_label = 'Blob Adder'
+
+    def execute(self, context):
+        if len(DATA_GEN) == 0:
+            DATA_GEN.append(DataGen(num_samples=context.scene.num_samples))
+        blob = DATA_GEN[0].mouse.add_blob()
+
+        if context.scene.randomize_blob_position:
+            blob.randomize_position(DATA_GEN[0].mouse.get_x(), DATA_GEN[0].mouse.get_y(), DATA_GEN[0].mouse.get_z())
+        else:
+            x = context.scene.blob_position_x
+            y = context.scene.blob_position_y
+            z = context.scene.blob_position_z
+
+            blob.set_position(x, y, z)
+
+        if context.scene.randomize_blob_scale:
+            blob.randomize_scale()
+        else:
+            x = context.scene.blob_scale_x
+            y = context.scene.blob_scale_y
+            z = context.scene.blob_scale_z
+
+            blob.set_scale(x, y, z)
+
+        if context.scene.randomize_blob_intensity:
+            blob.randomize_spline()
+        else:
+            blob.set_spline_by_peak_intensity(highest_intensity_frame=context.scene.blob_highest_intensity_frame,
+                                              peak_intensity_blob=context.scene.blob_highest_intensity)
+        return {'FINISHED'}
+
+
+class RenderSceneOperator(bpy.types.Operator):
+    bl_idname = 'opr.object_render_scene_operator'
+    bl_label = 'Scene Renderer'
+
+    def execute(self, context):
+        if len(DATA_GEN) == 0:
+            DATA_GEN.append(DataGen())
+
+        DATA_GEN[0].set_num_frames(context.scene.num_frames)
+        DATA_GEN[0].set_num_samples(context.scene.num_samples)
+        DATA_GEN[0].set_output_path(context.scene.output_path)
+        DATA_GEN[0].render_data()
+
+        return {'FINISHED'}
 
 
 def scale_object(obj, scaler_x, scaler_y, scaler_z):
@@ -93,11 +185,76 @@ class Blob:
 
         self.spline = None
 
+    def set_spline_by_frame(self, x, y):
+        """
+        Sets the spline based on a list of points. This function can be called manually to circumvent default points of spline.
+
+        :param x: List of points on the x-axis
+        :param y: Corresponding points on the y-axis
+        :return:
+        """
+        self.spline = interpolate.splrep(x, y, s=0)
+
+    def set_spline_by_peak_intensity(self, highest_intensity_frame, peak_intensity_blob):
+        """
+        Sets spline based on peak intensity. This function can be called manually to circumvent random generation of the spline.
+
+        :param highest_intensity_frame: Number frame with highest intensity
+        :param peak_intensity_blob: Maximum intensity of the blob
+
+        :return: None, sets spline
+        """
+        x = [0,
+             highest_intensity_frame / 100,
+             highest_intensity_frame / 4,
+             highest_intensity_frame / 2,
+             highest_intensity_frame,
+             (3 / 2) * highest_intensity_frame,
+             (self.num_frames + highest_intensity_frame) / 2,
+             (3 / 4) * self.num_frames + highest_intensity_frame / 4,
+             self.num_frames - 1,
+             self.num_frames]
+
+        # y - values
+        y = [0.0,
+             0.0,
+             peak_intensity_blob / 5,
+             (4 / 5) * peak_intensity_blob,
+             peak_intensity_blob,
+             (7 / 10) * peak_intensity_blob,
+             (3 / 10) * peak_intensity_blob,
+             (1 / 10) * peak_intensity_blob,
+             0.0,
+             0.0]
+
+        self.set_spline_by_frame(x, y)
+
+    def randomize_spline(self):
+        """
+        Randomize the shape of the spline curve for this Blob.
+
+        :return: This Blob object (for sequencing)
+        """
+        # frame with highest light intensity blob -> randomized at around 0.3 * num_frames +/- 0.05 * num_frames
+        highest_intensity_frame = int(
+            (self.num_frames * 0.3) + (random.uniform(-1.0, 1.0) * 0.05 * self.num_frames))
+
+        peak_intensity_blob = random.uniform(self.min_intensity_blob, self.max_intensity_blob)
+        # create spline for light emission of blob
+        # x - values
+        self.set_spline_by_peak_intensity(highest_intensity_frame, peak_intensity_blob)
+
+        # For sequencing
+        return self
+
     def get_blob(self):
         return self.blob
 
     def set_blob(self, blob):
         self.blob = blob
+
+    def set_position(self, x, y, z):
+        self.blob.location = [x, y, z]
 
     def randomize_position(self, x_mouse, y_mouse, z_mouse):
         """
@@ -113,13 +270,16 @@ class Blob:
         x_pos = random.uniform(-1.0, 1.0) * self.max_shift_blob_x + x_mouse
         y_pos = random.uniform(-1.0, 1.0) * self.max_shift_blob_y + y_mouse
         z_pos = 0 + z_mouse
-        self.blob.location = [x_pos, y_pos, z_pos]
+        self.set_position(x_pos, y_pos, z_pos)
 
         return self
 
+    def set_scale(self, x, y, z):
+        scale_object(self.blob, x, y, z)
+
     def randomize_scale(self):
         """
-        Randomize scale of mouse.
+        Randomize scale of blob.
 
         :return: This Blob object (for sequencing)
         """
@@ -132,49 +292,7 @@ class Blob:
         scaler_y_blob = random.uniform(self.min_scaling_blob, self.max_scaling_blob)
         scaler_z_blob = random.uniform(self.min_scaling_blob, self.max_scaling_blob)
 
-        scale_object(self.blob, scaler_x_blob, scaler_y_blob, scaler_z_blob)
-
-        return self
-
-    def randomize_spline(self):
-        """
-        Randomize the shape of the spline curve for this Blob.
-
-        :return: This Blob object (for sequencing)
-        """
-        # frame with highest light intensity blob -> randomized at around 0.3 * num_frames +/- 0.05 * num_frames
-        highest_intensity_frame = int(
-            (self.num_frames * 0.3) + (random.uniform(-1.0, 1.0) * 0.05 * self.num_frames))
-
-        # create spline for light emission of blob
-        # x - values
-        x = [0,
-             highest_intensity_frame / 100,
-             highest_intensity_frame / 4,
-             highest_intensity_frame / 2,
-             highest_intensity_frame,
-             (3 / 2) * highest_intensity_frame,
-             (self.num_frames + highest_intensity_frame) / 2,
-             (3 / 4) * self.num_frames + highest_intensity_frame / 4,
-             self.num_frames - 1,
-             self.num_frames]
-
-        peak_intensity_blob = random.uniform(self.min_intensity_blob, self.max_intensity_blob)
-
-        # y - values
-        y = [0.0,
-             0.0,
-             peak_intensity_blob / 5,
-             (4 / 5) * peak_intensity_blob,
-             peak_intensity_blob,
-             (7 / 10) * peak_intensity_blob,
-             (3 / 10) * peak_intensity_blob,
-             (1 / 10) * peak_intensity_blob,
-             0.0,
-             0.0]
-
-        # spline object
-        self.spline = interpolate.splrep(x, y, s=0)
+        self.set_scale(scaler_x_blob, scaler_y_blob, scaler_z_blob)
 
         return self
 
@@ -283,19 +401,20 @@ class Mouse:
 
         new_blob = duplicate_blob(blob_to_duplicate)
 
-        self.blobs.append(
-            Blob(
-                new_blob,
-                min_intensity_blob=min_intensity_blob,
-                max_intensity_blob=max_intensity_blob,
-                original_scaling_blob=original_scaling_blob,
-                min_scaling_blob=min_scaling_blob,
-                max_scaling_blob=max_scaling_blob,
-                max_shift_blob_x=max_shift_blob_x,
-                max_shift_blob_y=max_shift_blob_y,
-                num_frames=self.num_frames
-            )
+        blob_obj = Blob(
+            new_blob,
+            min_intensity_blob=min_intensity_blob,
+            max_intensity_blob=max_intensity_blob,
+            original_scaling_blob=original_scaling_blob,
+            min_scaling_blob=min_scaling_blob,
+            max_scaling_blob=max_scaling_blob,
+            max_shift_blob_x=max_shift_blob_x,
+            max_shift_blob_y=max_shift_blob_y,
+            num_frames=self.num_frames
         )
+        self.blobs.append(blob_obj)
+
+        return blob_obj
 
     def get_blobs(self):
         return self.blobs
@@ -367,13 +486,22 @@ class Mouse:
         self.light_source.energy = (self.init_intensity_mouse - self.end_intensity_mouse) * math.exp(
             (-self.num_frames / 2000) * frame) + self.end_intensity_mouse
 
+    def get_x(self):
+        return self.x_mouse
+
+    def get_y(self):
+        return self.y_mouse
+
+    def get_z(self):
+        return self.z_mouse
+
 
 class DataGen:
     def __init__(self,
                  img_size=128,
                  num_frames=100,
                  num_samples=10,
-                 num_blobs=1,
+                 output_path=None,
 
                  min_init_intensity_mouse=6500,
                  max_init_intensity_mouse=7500,
@@ -399,7 +527,6 @@ class DataGen:
         :param img_size: Pixel size of images to generate
         :param num_frames: Number of frames to render in each sample
         :param num_samples: Number of samples to render
-        :param num_blobs: Number of blobs to render
         :param min_init_intensity_mouse: Minimum intensity of initial light emitted from mouse
         :param max_init_intensity_mouse: Maximum intensity of initial light emitted from mouse
         :param min_end_intensity_mouse: Minimum intensity of final light emitted from mouse (should be less than initial intensity)
@@ -421,6 +548,7 @@ class DataGen:
         self.img_size = img_size
         self.num_samples = num_samples
         self.num_frames = num_frames
+        self.output_path = output_path
 
         self.mouse = Mouse(
             mouse=bpy.data.objects['mouse'],
@@ -440,18 +568,15 @@ class DataGen:
 
         if blobs is not None and [type(b) for b in blobs].count(Blob) == len(blobs):
             self.mouse.set_blobs(blobs)
-        else:
-            logging.info("No blob array was passed. Generating blobs...")
-            for b in range(num_blobs):
-                self.mouse.add_blob(
-                    original_scaling_blob=original_scaling_blob,
-                    min_scaling_blob=min_scaling_blob,
-                    max_scaling_blob=max_scaling_blob,
-                    max_shift_blob_x=max_shift_blob_x,
-                    max_shift_blob_y=max_shift_blob_y,
-                    min_intensity_blob=min_intensity_blob,
-                    max_intensity_blob=max_intensity_blob
-                )
+
+    def set_num_frames(self, num_frames):
+        self.num_frames = num_frames
+
+    def set_num_samples(self, num_samples):
+        self.num_samples = num_samples
+
+    def set_output_path(self, output_path):
+        self.output_path = output_path
 
     def render_data(self):
         bpy.data.scenes["Scene"].render.image_settings.file_format = 'TIFF'
@@ -466,7 +591,7 @@ class DataGen:
             self.mouse.randomize_position().randomize_scale().randomize_blobs()
 
             for frame in range(self.num_frames):
-                bpy.context.scene.render.filepath = f"{output_path}/{str(sample)}/frame{str(frame)}"
+                bpy.context.scene.render.filepath = f"{self.output_path}/{str(sample)}/frame{str(frame)}"
 
                 for blob in self.mouse.get_blobs():
                     blob.interpolate(frame)
@@ -480,6 +605,57 @@ class DataGen:
             bpy.ops.object.delete()
 
 
-data_gen = DataGen(num_samples=10, num_blobs=5)
+CLASSES = [
+    BlobGeneratorPanel,
+    BlobGeneratorOperator,
+    RenderSceneOperator,
+]
 
-data_gen.render_data()
+ADD_BLOB_PROPS = [
+    ('randomize_blob_intensity', bpy.props.BoolProperty(name='Randomize Blob Intensity?', default=True)),
+    ('blob_highest_intensity_frame', bpy.props.IntProperty(name='Peak Intensity Frame', default=30)),
+    ('blob_highest_intensity', bpy.props.FloatProperty(name='Peak Intensity Val', default=0.3)),
+    ('randomize_blob_position', bpy.props.BoolProperty(name='Randomize Blob Position?', default=True)),
+    ('blob_position_x', bpy.props.FloatProperty(name='Blob Pos X', default=0.0)),
+    ('blob_position_y', bpy.props.FloatProperty(name='Blob Pos Y', default=0.0)),
+    ('blob_position_z', bpy.props.FloatProperty(name='Blob Pos Z', default=0.0)),
+    ('randomize_blob_scale', bpy.props.BoolProperty(name='Randomize Blob Scale?', default=True)),
+    ('blob_scale_x', bpy.props.FloatProperty(name='Blob Scale X', default=0.0)),
+    ('blob_scale_y', bpy.props.FloatProperty(name='Blob Scale Y', default=0.0)),
+    ('blob_scale_z', bpy.props.FloatProperty(name='Blob Scale Z', default=0.0)),
+]
+
+RENDER_SCENE_PROPS = [
+    ('num_frames', bpy.props.IntProperty(name='Num Frames', default=100)),
+    ('num_samples', bpy.props.IntProperty(name='Num Samples', default=10)),
+    ('output_path', bpy.props.StringProperty(name='Output Path', default="/Users/avbalsam/Desktop/blender_animations/training_data_multiblob")),
+]
+
+DATA_GEN = list()
+
+
+def register():
+    for (prop_name, prop_value) in ADD_BLOB_PROPS:
+        setattr(bpy.types.Scene, prop_name, prop_value)
+
+    for (prop_name, prop_value) in RENDER_SCENE_PROPS:
+        setattr(bpy.types.Scene, prop_name, prop_value)
+
+    for klass in CLASSES:
+        bpy.utils.register_class(klass)
+
+
+def unregister():
+    for (prop_name, _) in ADD_BLOB_PROPS:
+        delattr(bpy.types.Scene, prop_name)
+
+    for (prop_name, _) in RENDER_SCENE_PROPS:
+        delattr(bpy.types.Scene, prop_name)
+
+    for klass in CLASSES:
+        bpy.utils.unregister_class(klass)
+
+
+if __name__ == "__main__":
+    register()
+
